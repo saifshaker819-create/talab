@@ -2588,6 +2588,11 @@ function renderSettings(){
       <select class="form-select" id="st-filter-group" onchange="filterSettingsStudents()" style="flex:1;min-width:130px;padding:8px 12px"><option value="">كل الكروبات</option>${groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}</select>
       <input class="search-input" id="st-search" placeholder="🔍 ابحث باسم الطالب..." oninput="filterSettingsStudents()" style="flex:2;min-width:160px">
     </div>
+    <div style="margin-bottom:10px">
+      <button onclick="downloadFilteredBarcodes()" style="width:100%;padding:10px 16px;border-radius:10px;background:linear-gradient(135deg,rgba(79,142,247,.15),rgba(107,163,255,.15));border:1.5px solid rgba(79,142,247,.4);color:var(--accent);font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:var(--transition)" onmouseover="this.style.background='linear-gradient(135deg,rgba(79,142,247,.25),rgba(107,163,255,.25))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(79,142,247,.15),rgba(107,163,255,.15))'">
+        ⬇️ تنزيل باركودات الطلاب المُصفَّين
+      </button>
+    </div>
     <div class="settings-list" id="students-settings-list">${students.map(st=>{ const group=groups.find(g=>g.id===st.groupId),stage=stages.find(s=>s.id===st.stageId); return `<div class="settings-item student-si" data-stage="${st.stageId}" data-group="${st.groupId}"><div><div class="si-info">${st.name}</div><div class="si-meta">${stage?.name||''} · ${group?.name||''} · <span style="color:var(--accent);font-weight:700">${st.barcode||'ST-????'}</span></div></div><div class="si-actions"><button class="student-barcode-btn" onclick="openBarcodeModal(${st.id})">🔲 باركود</button><button class="si-btn si-edit" onclick="editStudentSettings(${st.id})">✏️</button><button class="si-btn si-del" onclick="deleteStudentSettings(${st.id})">🗑️</button></div></div>`; }).join('')}</div>`;
 
   // --- بصمة الوجه ---
@@ -2686,6 +2691,178 @@ function filterSettingsStudents(){
   if(groupSel&&selStage){ Array.from(groupSel.options).forEach(function(opt){ if(!opt.value) return; const grp=(state.groups||[]).find(function(g){return String(g.id)===opt.value;}); opt.style.display=(grp&&String(grp.stageId)===selStage)?'':'none'; }); }
   else if(groupSel){ Array.from(groupSel.options).forEach(function(opt){ opt.style.display=''; }); }
   document.querySelectorAll('.student-si').forEach(function(el){ const name=el.querySelector('.si-info')?.textContent.toLowerCase()||''; const stageMatch=!selStage||el.dataset.stage===selStage; const groupMatch=!selGroup||el.dataset.group===selGroup; const nameMatch=!q||name.includes(q); el.style.display=(stageMatch&&groupMatch&&nameMatch)?'':'none'; });
+}
+
+// ========== تنزيل باركودات الطلاب المُصفَّين ==========
+async function downloadFilteredBarcodes(){
+  if(typeof QRCode === 'undefined'){
+    toast('⚠️ مكتبة QR Code لم تُحمَّل','e'); return;
+  }
+
+  // جمع الطلاب الظاهرين حالياً
+  const visibleItems = Array.from(document.querySelectorAll('.student-si')).filter(function(el){
+    return el.style.display !== 'none';
+  });
+
+  if(!visibleItems.length){
+    toast('لا يوجد طلاب لتنزيل باركوداتهم','e'); return;
+  }
+
+  // استخراج IDs من الـ onclick
+  const studentIds = visibleItems.map(function(el){
+    const btn = el.querySelector('.student-barcode-btn');
+    if(!btn) return null;
+    const m = btn.getAttribute('onclick').match(/openBarcodeModal\((\d+)\)/);
+    return m ? parseInt(m[1]) : null;
+  }).filter(Boolean);
+
+  const students = studentIds.map(function(id){
+    return (state.students||[]).find(function(s){ return s.id===id; });
+  }).filter(Boolean);
+
+  if(!students.length){ toast('لا يوجد طلاب','e'); return; }
+
+  // إنشاء label تعريفي للفلتر الحالي
+  const selStage = document.getElementById('st-filter-stage')?.value||'';
+  const selGroup = document.getElementById('st-filter-group')?.value||'';
+  const stageName = selStage ? ((state.stages||[]).find(function(s){return String(s.id)===selStage;})?.name||'') : 'كل المراحل';
+  const groupName = selGroup ? ((state.groups||[]).find(function(g){return String(g.id)===selGroup;})?.name||'') : '';
+
+  toast('⏳ جاري إنشاء الباركودات... (' + students.length + ' طالب)','i');
+
+  // قياسات الكارت الواحد
+  const CARD_W = 300, CARD_H = 370;
+  const COLS = 3;
+  const ROWS = Math.ceil(students.length / COLS);
+  const PAD = 16;
+  const FULL_W = COLS * CARD_W + (COLS+1) * PAD;
+  const FULL_H = ROWS * CARD_H + (ROWS+1) * PAD;
+
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width  = FULL_W;
+  finalCanvas.height = FULL_H;
+  const ctx = finalCanvas.getContext('2d');
+
+  // خلفية رمادية فاتحة
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillRect(0, 0, FULL_W, FULL_H);
+
+  // عنوان الصفحة
+  ctx.fillStyle = '#1a2035';
+  ctx.font = 'bold 20px Tahoma';
+  ctx.textAlign = 'center';
+
+  // دالة رسم كارت طالب واحد
+  function drawCard(st, col, row){
+    const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
+    const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
+    ensureBarcode(st);
+
+    const x = PAD + col*(CARD_W+PAD);
+    const y = PAD + row*(CARD_H+PAD);
+
+    // خلفية بيضاء
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
+    ctx.fill();
+
+    // إطار
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
+    ctx.stroke();
+
+    // شريط علوي
+    ctx.fillStyle = '#4f8ef7';
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, 36, [12,12,0,0]); } else { ctx.rect(x, y, CARD_W, 36); }
+    ctx.fill();
+
+    // اسم الطالب
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 13px Tahoma';
+    ctx.textAlign = 'center';
+    const nameText = st.name.length > 20 ? st.name.substring(0,19)+'…' : st.name;
+    ctx.fillText(nameText, x + CARD_W/2, y + 23);
+
+    // المرحلة والكروب
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px Tahoma';
+    ctx.fillText((stage?.name||'') + (group?' — '+group.name:''), x + CARD_W/2, y + 50);
+
+    return {x, y, stage, group};
+  }
+
+  // رسم جميع الكروت وإنشاء QR codes
+  let pending = students.length;
+  if(pending === 0){ finalizeDownload(); return; }
+
+  students.forEach(function(st, idx){
+    const col = idx % COLS;
+    const row = Math.floor(idx / COLS);
+    const info = drawCard(st, col, row);
+    const x = info.x, y = info.y;
+
+    // إنشاء QR مؤقت
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(tempDiv);
+
+    try {
+      const qr = new QRCode(tempDiv, {
+        text: st.barcode,
+        width: 180, height: 180,
+        colorDark: '#1a2035', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      // الانتظار لحين توليد الصورة
+      setTimeout(function(){
+        const qrImg = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
+        if(qrImg){
+          if(qrImg.tagName === 'CANVAS'){
+            ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
+          } else {
+            // img قد لا تكون جاهزة
+            if(qrImg.complete){
+              ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
+            } else {
+              qrImg.onload = function(){ ctx.drawImage(qrImg, x + 60, y + 60, 180, 180); };
+            }
+          }
+        }
+        // الكود
+        ctx.fillStyle = '#4f8ef7';
+        ctx.font = 'bold 14px Tahoma';
+        ctx.textAlign = 'center';
+        ctx.fillText(st.barcode, x + CARD_W/2, y + 262);
+
+        // تفصيل
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px Tahoma';
+        ctx.fillText((info.stage?.name||'') + (info.group?' · '+info.group.name:''), x + CARD_W/2, y + 280);
+
+        document.body.removeChild(tempDiv);
+        pending--;
+        if(pending === 0) finalizeDownload();
+      }, 120);
+    } catch(e){
+      document.body.removeChild(tempDiv);
+      pending--;
+      if(pending === 0) finalizeDownload();
+    }
+  });
+
+  function finalizeDownload(){
+    const link = document.createElement('a');
+    const fileName = 'barcodes-' + stageName + (groupName?'-'+groupName:'') + '-' + students.length + 'student.png';
+    link.download = fileName;
+    link.href = finalCanvas.toDataURL('image/png');
+    link.click();
+    toast('✅ تم تنزيل ' + students.length + ' باركود بنجاح');
+  }
 }
 function clearAllAttendance(){
   if(!currentUser||currentUser.role!=='admin'){toast('❌ للمدير فقط','e');return;}
@@ -3429,7 +3606,10 @@ function confirmAdminDelete(){
       <div class="sc-badge present">✅ حاضر: <span id="scanPresent">0</span></div>
       <div class="sc-badge absent">⏳ لم يُمسح: <span id="scanPending">0</span></div>
     </div>
-    <button class="scanner-close-btn" onclick="closeScanner()">✕ إنهاء المسح</button>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="scanner-close-btn" onclick="closeScanner()" style="flex:1">✕ إنهاء المسح</button>
+      <button id="btnFlipCamera" onclick="flipScannerCamera()" style="padding:11px 18px;border-radius:12px;background:rgba(79,142,247,.12);border:1.5px solid rgba(79,142,247,.35);color:var(--accent);font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap" title="تبديل الكاميرا">🔄 تبديل الكاميرا</button>
+    </div>
   </div>
 </div>
 
@@ -3469,6 +3649,7 @@ var _scannerLastTime   = 0;
 var _scannerBeepTO     = null;
 var _scannerTimerIv    = null;  // setInterval للعداد
 var _scannerExpired    = false; // هل انتهى الوقت؟
+var _scannerFacing     = 'environment'; // الكاميرا الخلفية افتراضياً
 
 // _sessStore: {key: {startTime, present:{id:true,...}, locked:bool}}
 window._sessStore = window._sessStore || {};
@@ -3490,6 +3671,7 @@ async function openScanner(subjectId, groupId){
   _scannerGroupId   = groupId;
   _scannerSessKey   = 'sess_' + subjectId + '_' + groupId;
   _scannerExpired   = false;
+  _scannerFacing    = 'environment'; // ابدأ دائماً بالكاميرا الخلفية
 
   // === تهيئة الجلسة (مع الحفاظ على بيانات سابقة) ===
   if(!window._sessStore[_scannerSessKey]){
@@ -3513,7 +3695,7 @@ async function openScanner(subjectId, groupId){
 
   try {
     _scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+      video: { facingMode: _scannerFacing, width:{ideal:1280}, height:{ideal:720} }
     });
     var video = document.getElementById('scannerVideo');
     video.srcObject = _scannerStream;
@@ -3728,6 +3910,56 @@ function closeScanner(){
 function _stopCamera(){
   if(_scannerRAF){ cancelAnimationFrame(_scannerRAF); _scannerRAF = null; }
   if(_scannerStream){ _scannerStream.getTracks().forEach(function(t){ t.stop(); }); _scannerStream = null; }
+}
+
+// ========== تدوير/تبديل الكاميرا ==========
+async function flipScannerCamera(){
+  var btn = document.getElementById('btnFlipCamera');
+  if(btn){ btn.disabled = true; btn.style.opacity = '0.5'; }
+
+  // أوقف الكاميرا الحالية
+  if(_scannerRAF){ cancelAnimationFrame(_scannerRAF); _scannerRAF = null; }
+  if(_scannerStream){ _scannerStream.getTracks().forEach(function(t){ t.stop(); }); _scannerStream = null; }
+
+  // اقلب الاتجاه
+  _scannerFacing = (_scannerFacing === 'environment') ? 'user' : 'environment';
+
+  try {
+    _scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: _scannerFacing }, width:{ideal:1280}, height:{ideal:720} }
+    });
+  } catch(e1) {
+    // إذا فشل exact جرّب بدون exact
+    try {
+      _scannerStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: _scannerFacing, width:{ideal:1280}, height:{ideal:720} }
+      });
+    } catch(e2) {
+      // رجوع للكاميرا السابقة
+      _scannerFacing = (_scannerFacing === 'environment') ? 'user' : 'environment';
+      try {
+        _scannerStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: _scannerFacing, width:{ideal:1280}, height:{ideal:720} }
+        });
+      } catch(e3) {
+        _setScannerStatus('error', '❌ تعذّر تبديل الكاميرا');
+        if(btn){ btn.disabled = false; btn.style.opacity = ''; }
+        return;
+      }
+      toast('⚠️ كاميرا واحدة فقط متاحة', 'w');
+    }
+  }
+
+  var video = document.getElementById('scannerVideo');
+  video.srcObject = _scannerStream;
+  video.play();
+  video.onloadedmetadata = function(){
+    _startScanLoop();
+    if(btn){ btn.disabled = false; btn.style.opacity = ''; }
+    _setScannerStatus('waiting', '📡 وجّه الكاميرا نحو باركود الطالب');
+  };
+  // عكس فيديو الكاميرا الأمامية ليبدو طبيعياً
+  video.style.transform = (_scannerFacing === 'user') ? 'scaleX(-1)' : '';
 }
 
 // ========== أدوات مساعدة ==========
