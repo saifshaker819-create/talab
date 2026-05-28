@@ -113,6 +113,10 @@ window.addEventListener('error', function(e){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="window._xlsxErr=true"></script>
 <!-- xlsx-js-style for admin export -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" onerror="window._xlsxStyleErr=true"></script>
+<!-- jsQR — مكتبة قراءة QR/باركود بالكاميرا -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" onerror="window._jsQRErr=true"></script>
+<!-- QRCode.js — توليد QR لكل طالب -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" onerror="window._qrcodeErr=true"></script>
 <script>
 // Fallback إذا فشل تحميل xlsx (لا إنترنت)
 if(typeof XLSX === 'undefined'){
@@ -226,6 +230,51 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .bio-status.loading{background:rgba(79,142,247,.12);color:var(--accent)}
 .bio-not-supported{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--accent4);text-align:center;margin-bottom:12px;display:none}
 .bio-not-supported.show{display:block}
+
+/* ===========================
+   BARCODE SCANNER SYSTEM
+   =========================== */
+.scanner-overlay{position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .3s}
+.scanner-overlay.show{opacity:1;pointer-events:all}
+.scanner-box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:24px;width:100%;max-width:480px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.scanner-title{font-size:17px;font-weight:800;text-align:center;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.scanner-video-wrap{position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.scanner-video-wrap video{width:100%;height:100%;object-fit:cover;display:block}
+.scanner-frame{position:absolute;inset:0;pointer-events:none}
+.scanner-line{position:absolute;top:0;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanLine 1.5s ease-in-out infinite}
+@keyframes scanLine{0%{top:15%}50%{top:80%}100%{top:15%}}
+.scanner-corner-tr{position:absolute;top:10px;right:10px;width:40px;height:40px;border:3px solid var(--accent);border-left:none;border-bottom:none;border-radius:0 8px 0 0}
+.scanner-corner-bl{position:absolute;bottom:10px;left:10px;width:40px;height:40px;border:3px solid var(--accent);border-right:none;border-top:none;border-radius:0 0 0 8px}
+.scanner-corner-br{position:absolute;bottom:10px;right:10px;width:40px;height:40px;border:3px solid var(--accent);border-left:none;border-top:none;border-radius:0 0 8px 0}
+.scanner-corner-tl{position:absolute;top:10px;left:10px;width:40px;height:40px;border:3px solid var(--accent);border-right:none;border-bottom:none;border-radius:8px 0 0 0}
+.scanner-status{margin-top:14px;padding:12px 16px;border-radius:12px;text-align:center;font-size:14px;font-weight:700;background:var(--glass2);border:1px solid var(--border);min-height:50px;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .3s}
+.scanner-status.waiting{color:var(--text2)}
+.scanner-status.found{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.4);color:var(--present)}
+.scanner-status.error{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:var(--absent)}
+.scanner-count{display:flex;gap:12px;margin-top:12px;justify-content:center}
+.sc-badge{padding:6px 16px;border-radius:20px;font-size:14px;font-weight:800}
+.sc-badge.present{background:rgba(16,185,129,.2);color:var(--present)}
+.sc-badge.absent{background:rgba(239,68,68,.2);color:var(--absent)}
+.scanner-close-btn{width:100%;margin-top:14px;padding:11px;border-radius:12px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);font-family:'Tajawal',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:var(--transition)}
+.scanner-close-btn:hover{background:var(--glass3);color:var(--text)}
+.scanner-beep-visual{position:absolute;inset:0;background:rgba(16,185,129,.3);border-radius:14px;opacity:0;pointer-events:none;transition:opacity .15s}
+.scanner-beep-visual.flash{opacity:1}
+.student-barcode-btn{background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.35);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--accent);cursor:pointer;font-family:'Tajawal',sans-serif;font-weight:700;transition:var(--transition)}
+.student-barcode-btn:hover{background:rgba(79,142,247,.25)}
+.barcode-modal-overlay{position:fixed;inset:0;z-index:10200;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .3s}
+.barcode-modal-overlay.show{opacity:1;pointer-events:all}
+.barcode-modal{background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,.5);text-align:center}
+.barcode-modal-name{font-size:18px;font-weight:800;color:#1a2035;margin-bottom:4px}
+.barcode-modal-stage{font-size:13px;color:#64748b;margin-bottom:20px}
+.barcode-qr-wrap{display:flex;justify-content:center;margin-bottom:12px}
+.barcode-label{font-size:15px;font-weight:800;color:#1a2035;margin-bottom:2px}
+.barcode-sublabel{font-size:12px;color:#64748b;margin-bottom:20px}
+.barcode-modal-btns{display:flex;gap:10px}
+.barcode-print-btn{flex:1;padding:11px;border-radius:12px;background:linear-gradient(135deg,#4f8ef7,#6ba3ff);border:none;color:#fff;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .3s}
+.barcode-dl-btn{flex:1;padding:11px;border-radius:12px;background:rgba(16,185,129,.15);border:1.5px solid rgba(16,185,129,.4);color:#10b981;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .3s}
+.barcode-close-btn{width:100%;margin-top:10px;padding:10px;border-radius:12px;background:#f1f5f9;border:none;color:#64748b;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
+.btn-scan-camera{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,#10b981,#34d399);border:none;color:#fff;font-family:'Tajawal',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:var(--transition);box-shadow:0 4px 12px rgba(16,185,129,0.35)}
+.btn-scan-camera:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(16,185,129,0.5)}
 
 /* ===========================
    ASTATH APP STYLES
@@ -2145,7 +2194,7 @@ function renderAttendance(subjectId,groupId){
   }
   let html=`<div class="att-header"><div class="att-info"><h2>${subject?.name}</h2><p>${stage?.name} · ${group?.name||'بدون كروب'} · ${students.length} طالب · ${subject?.type==='practical'?'🔬 عملي':'📖 نظري'}</p></div><div class="att-date-info"><strong>${timeStr}</strong>${dateStr}</div><div class="att-stats"><div class="stat-box"><div class="stat-num green" id="present-cnt">${pCnt}</div><div class="stat-label">حاضر</div></div><div class="stat-box"><div class="stat-num red" id="absent-cnt">${aCnt}</div><div class="stat-label">غائب</div></div><div class="stat-box"><div class="stat-num" style="color:var(--text2)">${students.length-pCnt-aCnt}</div><div class="stat-label">لم يُسجَّل</div></div></div>${timerDisplay}<div style="display:flex;flex-direction:column;gap:8px;align-items:stretch"><button class="btn-save-all" onclick="saveAttendance(${subjectId},${groupId})">💾 حفظ وإرسال</button><button onclick="resetAttendance('${sessKey}',${subjectId},${groupId})" style="padding:8px 16px;border-radius:10px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);font-family:Tajawal;font-size:13px;font-weight:700;cursor:pointer;">↺ إعادة تعيين</button></div></div>`;
   html+=`<div class="att-tabs"><button class="att-tab active" id="tab-current" onclick="switchAttTab('current',${subjectId},${groupId})">📝 تسجيل الحضور</button><button class="att-tab" id="tab-history" onclick="switchAttTab('history',${subjectId},${groupId})">📋 سجل المادة</button></div>`;
-  html+=`<div id="att-panel-current"><div class="search-bar"><input class="search-input" id="student-search" placeholder="🔍 ابحث عن طالب..." oninput="filterStudents()"><button class="btn-add" onclick="addStudentToGroup(${nav.stage},${groupId})">＋ إضافة طالب</button><button style="padding:9px 14px;border-radius:10px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:Tajawal;font-size:13px;" onclick="markAll('present',${subjectId},${groupId})">✅ حضور الكل</button><button style="padding:9px 14px;border-radius:10px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:Tajawal;font-size:13px;" onclick="markAll('absent',${subjectId},${groupId})">❌ غياب الكل</button></div>`;
+  html+=`<div id="att-panel-current"><div class="search-bar"><input class="search-input" id="student-search" placeholder="🔍 ابحث عن طالب..." oninput="filterStudents()"><button class="btn-scan-camera" onclick="openScanner(${subjectId},${groupId})">📷 مسح بالكاميرا</button><button class="btn-add" onclick="addStudentToGroup(${nav.stage},${groupId})">＋ إضافة طالب</button><button style="padding:9px 14px;border-radius:10px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:Tajawal;font-size:13px;" onclick="markAll('present',${subjectId},${groupId})">✅ حضور الكل</button><button style="padding:9px 14px;border-radius:10px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:Tajawal;font-size:13px;" onclick="markAll('absent',${subjectId},${groupId})">❌ غياب الكل</button></div>`;
   if(!students.length) html+=`<div class="empty-state"><div class="es-icon">🎓</div><p>لا يوجد طلاب في هذا الكروب.</p></div>`;
   else{
     html+=`<div class="table-wrap"><table class="att-table"><thead><tr><th>#</th><th>اسم الطالب</th><th>الحالة</th><th>الإنذارات</th></tr></thead><tbody id="students-tbody">`;
@@ -2341,15 +2390,21 @@ function addStudentToGroup(stageId,groupId){
       const name=document.getElementById('inp-name').value.trim();
       if(!name){toast('أدخل الاسم','e');return;}
       if(!state.students) state.students=[];
-      state.students.push({id:nextId(),stageId,groupId,name});
+      const newId=nextId();
+      const barcode='ST-'+String(newId).padStart(5,'0');
+      state.students.push({id:newId,stageId,groupId,name,barcode});
       save(); closeModal(); renderAttendance(nav.subject,groupId);
-      toast('تمت إضافة الطالب');
+      toast('تمت إضافة الطالب — باركود: '+barcode);
     } else {
       const raw=document.getElementById('inp-bulk').value;
       const names=raw.split('\n').map(n=>n.trim()).filter(n=>n.length>0);
       if(!names.length){toast('أدخل أسماء الطلاب','e');return;}
       if(!state.students) state.students=[];
-      names.forEach(name=>{ state.students.push({id:nextId(),stageId,groupId,name}); });
+      names.forEach(name=>{
+        const newId=nextId();
+        const barcode='ST-'+String(newId).padStart(5,'0');
+        state.students.push({id:newId,stageId,groupId,name,barcode});
+      });
       save(); closeModal(); renderAttendance(nav.subject,groupId);
       toast('تمت إضافة '+names.length+' طالب ✅');
     }
@@ -2468,7 +2523,7 @@ function renderSettings(){
       <select class="form-select" id="st-filter-group" onchange="filterSettingsStudents()" style="flex:1;min-width:130px;padding:8px 12px"><option value="">كل الكروبات</option>${groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}</select>
       <input class="search-input" id="st-search" placeholder="🔍 ابحث باسم الطالب..." oninput="filterSettingsStudents()" style="flex:2;min-width:160px">
     </div>
-    <div class="settings-list" id="students-settings-list">${students.map(st=>{ const group=groups.find(g=>g.id===st.groupId),stage=stages.find(s=>s.id===st.stageId); return `<div class="settings-item student-si" data-stage="${st.stageId}" data-group="${st.groupId}"><div><div class="si-info">${st.name}</div><div class="si-meta">${stage?.name||''} · ${group?.name||''}</div></div><div class="si-actions"><button class="si-btn si-edit" onclick="editStudentSettings(${st.id})">✏️</button><button class="si-btn si-del" onclick="deleteStudentSettings(${st.id})">🗑️</button></div></div>`; }).join('')}</div>`;
+    <div class="settings-list" id="students-settings-list">${students.map(st=>{ const group=groups.find(g=>g.id===st.groupId),stage=stages.find(s=>s.id===st.stageId); return `<div class="settings-item student-si" data-stage="${st.stageId}" data-group="${st.groupId}"><div><div class="si-info">${st.name}</div><div class="si-meta">${stage?.name||''} · ${group?.name||''} · <span style="color:var(--accent);font-weight:700">${st.barcode||'ST-????'}</span></div></div><div class="si-actions"><button class="student-barcode-btn" onclick="openBarcodeModal(${st.id})">🔲 باركود</button><button class="si-btn si-edit" onclick="editStudentSettings(${st.id})">✏️</button><button class="si-btn si-del" onclick="deleteStudentSettings(${st.id})">🗑️</button></div></div>`; }).join('')}</div>`;
 
   // --- بصمة الوجه ---
   const _astathCreds = BIO.getCreds('astath');
@@ -3256,6 +3311,367 @@ function confirmAdminDelete(){
   db.ref('dentalData/attendance').set(adminState.attendance)
     .then(()=>{ toast(`تم حذف ${adminPendingDeleteIds.length} سجل من النظامين ✅`); closeAdminDeleteModal(); applyAdminFilters(); renderAdminStats(); })
     .catch(()=>toast('خطأ في الحذف','e'));
+}
+</script>
+
+<!-- ===== نافذة مسح باركود الطالب (كاميرا الأستاذ) ===== -->
+<div class="scanner-overlay" id="scannerOverlay">
+  <div class="scanner-box">
+    <div class="scanner-title">📷 مسح باركود الطالب</div>
+    <div class="scanner-video-wrap" id="scannerVideoWrap">
+      <video id="scannerVideo" playsinline autoplay muted></video>
+      <canvas id="scannerCanvas" style="display:none"></canvas>
+      <div class="scanner-frame">
+        <div class="scanner-corner-tl"></div>
+        <div class="scanner-corner-tr"></div>
+        <div class="scanner-corner-bl"></div>
+        <div class="scanner-corner-br"></div>
+        <div class="scanner-line"></div>
+      </div>
+      <div class="scanner-beep-visual" id="scannerBeep"></div>
+    </div>
+    <div class="scanner-status waiting" id="scannerStatus">📡 وجّه الكاميرا نحو باركود الطالب</div>
+    <div class="scanner-count">
+      <div class="sc-badge present">✅ حاضر: <span id="scanPresent">0</span></div>
+      <div class="sc-badge absent">⏳ لم يُمسح: <span id="scanPending">0</span></div>
+    </div>
+    <button class="scanner-close-btn" onclick="closeScanner()">✕ إنهاء المسح وحفظ الحضور</button>
+  </div>
+</div>
+
+<!-- ===== نافذة باركود الطالب ===== -->
+<div class="barcode-modal-overlay" id="barcodeModalOverlay">
+  <div class="barcode-modal">
+    <div class="barcode-modal-name" id="barcodeStudentName">اسم الطالب</div>
+    <div class="barcode-modal-stage" id="barcodeStudentStage">المرحلة — الكروب</div>
+    <div class="barcode-qr-wrap" id="barcodeQRWrap"></div>
+    <div class="barcode-label" id="barcodeStudentCode">ST-0000</div>
+    <div class="barcode-sublabel" id="barcodeStudentInfo">الاسم — المرحلة</div>
+    <div class="barcode-modal-btns">
+      <button class="barcode-print-btn" onclick="printStudentBarcode()">🖨️ طباعة</button>
+      <button class="barcode-dl-btn" onclick="downloadStudentBarcode()">⬇️ تنزيل</button>
+    </div>
+    <button class="barcode-close-btn" onclick="closeBarcodeModal()">إغلاق</button>
+  </div>
+</div>
+
+<!-- ===== BARCODE SCANNER & QR SYSTEM ===== -->
+<script>
+// ======================================================
+// نظام مسح الباركود بكاميرا الأستاذ
+// ======================================================
+var _scannerStream = null;
+var _scannerRAF = null;
+var _scannerSubjectId = null;
+var _scannerGroupId = null;
+var _scannerSessKey = null;
+var _scannerLastCode = null;
+var _scannerLastTime = 0;
+var _scannerBeepTimeout = null;
+
+// توليد باركود لطالب قديم لا يملك واحداً
+function ensureBarcode(st){
+  if(!st.barcode){
+    st.barcode = 'ST-' + String(st.id).padStart(5,'0');
+  }
+  return st.barcode;
+}
+
+// فتح نافذة المسح
+async function openScanner(subjectId, groupId){
+  if(window._jsQRErr || typeof jsQR === 'undefined'){
+    toast('❌ مكتبة jsQR لم تُحمَّل — تحقق من الإنترنت','e');
+    return;
+  }
+  _scannerSubjectId = subjectId;
+  _scannerGroupId = groupId;
+  _scannerSessKey = subjectId + '-' + groupId;
+
+  // تهيئة الجلسة إذا لم تكن موجودة
+  window._sessionAtt = window._sessionAtt || {};
+  if(!window._sessionAtt[_scannerSessKey]) window._sessionAtt[_scannerSessKey] = {};
+
+  document.getElementById('scannerOverlay').classList.add('show');
+  _updateScannerCount();
+  _setScannerStatus('waiting', '📡 وجّه الكاميرا نحو باركود الطالب');
+
+  try {
+    _scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: {ideal:1280}, height: {ideal:720} }
+    });
+    const video = document.getElementById('scannerVideo');
+    video.srcObject = _scannerStream;
+    video.play();
+    video.onloadedmetadata = function(){ _startScanLoop(); };
+  } catch(err){
+    _setScannerStatus('error', '❌ لا يمكن الوصول للكاميرا: ' + err.message);
+  }
+}
+
+function _startScanLoop(){
+  const video = document.getElementById('scannerVideo');
+  const canvas = document.getElementById('scannerCanvas');
+  const ctx = canvas.getContext('2d');
+
+  function tick(){
+    _scannerRAF = requestAnimationFrame(tick);
+    if(video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'dontInvert'
+    });
+    if(code && code.data){
+      const now = Date.now();
+      // منع قراءة نفس الباركود مرتين في 2 ثانية
+      if(code.data === _scannerLastCode && (now - _scannerLastTime) < 2000) return;
+      _scannerLastCode = code.data;
+      _scannerLastTime = now;
+      _processScan(code.data);
+    }
+  }
+  tick();
+}
+
+function _processScan(barcodeData){
+  const students = (state.students||[]).filter(st => st.stageId === nav.stage && st.groupId === _scannerGroupId);
+  // البحث عن الطالب بالباركود
+  const student = students.find(st => ensureBarcode(st) === barcodeData);
+
+  if(!student){
+    _setScannerStatus('error', '⚠️ باركود غير معروف: ' + barcodeData);
+    _flashBeep(false);
+    return;
+  }
+
+  // تحقق هل سُجِّل مسبقاً
+  const existing = (window._sessionAtt[_scannerSessKey]||{})[student.id];
+  if(existing === 'present'){
+    _setScannerStatus('found', '✅ ' + student.name + ' — مسجل حاضر مسبقاً');
+    _flashBeep(true);
+    return;
+  }
+
+  // سجّل حاضر
+  window._sessionAtt[_scannerSessKey][student.id] = 'present';
+  _setScannerStatus('found', '✅ ' + student.name + ' — تم تسجيل الحضور');
+  _flashBeep(true);
+  _updateScannerCount();
+
+  // تحديث العداد في الجدول الرئيسي إذا كان مفتوحاً
+  const pEl = document.getElementById('present-cnt');
+  if(pEl){
+    const sessAtt = window._sessionAtt[_scannerSessKey]||{};
+    let p=0; students.forEach(s=>{ if(sessAtt[s.id]==='present') p++; });
+    pEl.textContent = p;
+  }
+  // تلوين الصف في الجدول
+  const row = document.getElementById('row-' + student.id);
+  if(row){
+    const btns = row.querySelectorAll('.att-btn');
+    btns.forEach(b=>b.classList.remove('active'));
+    const pBtn = row.querySelector('.present-btn');
+    if(pBtn) pBtn.classList.add('active');
+  }
+}
+
+function _setScannerStatus(type, msg){
+  const el = document.getElementById('scannerStatus');
+  if(!el) return;
+  el.className = 'scanner-status ' + type;
+  el.textContent = msg;
+}
+
+function _updateScannerCount(){
+  const students = (state.students||[]).filter(st => st.stageId === nav.stage && st.groupId === _scannerGroupId);
+  const sessAtt = (window._sessionAtt||{})[_scannerSessKey]||{};
+  let p = 0;
+  students.forEach(s=>{ if(sessAtt[s.id]==='present') p++; });
+  const pEl = document.getElementById('scanPresent');
+  const pendEl = document.getElementById('scanPending');
+  if(pEl) pEl.textContent = p;
+  if(pendEl) pendEl.textContent = students.length - p;
+}
+
+function _flashBeep(success){
+  const el = document.getElementById('scannerBeep');
+  if(!el) return;
+  el.style.background = success ? 'rgba(16,185,129,.35)' : 'rgba(239,68,68,.35)';
+  el.classList.add('flash');
+  clearTimeout(_scannerBeepTimeout);
+  _scannerBeepTimeout = setTimeout(()=>{ el.classList.remove('flash'); }, 300);
+
+  // صوت بسيط
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = success ? 880 : 440;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(); osc.stop(ctx.currentTime + 0.15);
+  } catch(e){}
+}
+
+function closeScanner(){
+  // إيقاف الكاميرا
+  if(_scannerRAF){ cancelAnimationFrame(_scannerRAF); _scannerRAF=null; }
+  if(_scannerStream){ _scannerStream.getTracks().forEach(t=>t.stop()); _scannerStream=null; }
+  document.getElementById('scannerOverlay').classList.remove('show');
+
+  // إذا كانت شاشة الحضور مفتوحة، أعد رسمها
+  if(nav.subject !== null && nav.subject === _scannerSubjectId){
+    renderAttendance(_scannerSubjectId, _scannerGroupId);
+  }
+}
+
+// ======================================================
+// نظام باركود الطالب (QR Code)
+// ======================================================
+var _barcodeCurrentStudent = null;
+
+function openBarcodeModal(studentId){
+  const st = (state.students||[]).find(s=>s.id===studentId);
+  if(!st){ toast('الطالب غير موجود','e'); return; }
+  ensureBarcode(st);
+
+  const stage = (state.stages||[]).find(s=>s.id===st.stageId);
+  const group = (state.groups||[]).find(g=>g.id===st.groupId);
+
+  _barcodeCurrentStudent = st;
+
+  document.getElementById('barcodeStudentName').textContent = st.name;
+  document.getElementById('barcodeStudentStage').textContent = (stage?.name||'') + (group?' — '+group.name:'');
+  document.getElementById('barcodeStudentCode').textContent = st.barcode;
+  document.getElementById('barcodeStudentInfo').textContent = st.name + ' · ' + (stage?.name||'');
+
+  // توليد QR Code
+  const wrap = document.getElementById('barcodeQRWrap');
+  wrap.innerHTML = '<div id="barcodeQRCanvas"></div>';
+
+  if(typeof QRCode === 'undefined'){
+    wrap.innerHTML = '<div style="color:#ef4444;font-size:13px;padding:20px">⚠️ مكتبة QR Code لم تُحمَّل</div>';
+  } else {
+    new QRCode(document.getElementById('barcodeQRCanvas'), {
+      text: st.barcode,
+      width: 200,
+      height: 200,
+      colorDark: '#1a2035',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  }
+
+  document.getElementById('barcodeModalOverlay').classList.add('show');
+}
+
+function closeBarcodeModal(){
+  document.getElementById('barcodeModalOverlay').classList.remove('show');
+  _barcodeCurrentStudent = null;
+}
+
+function _getBarcodeCanvas(){
+  // الحصول على canvas من QRCode
+  return document.querySelector('#barcodeQRCanvas canvas') ||
+         document.querySelector('#barcodeQRCanvas img');
+}
+
+function printStudentBarcode(){
+  if(!_barcodeCurrentStudent) return;
+  const st = _barcodeCurrentStudent;
+  const stage = (state.stages||[]).find(s=>s.id===st.stageId);
+  const group = (state.groups||[]).find(g=>g.id===st.groupId);
+  const qrEl = _getBarcodeCanvas();
+  let qrSrc = '';
+  if(qrEl && qrEl.tagName==='CANVAS') qrSrc = qrEl.toDataURL('image/png');
+  else if(qrEl && qrEl.tagName==='IMG') qrSrc = qrEl.src;
+
+  const win = window.open('','_blank','width=400,height=500');
+  win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+  <style>
+    body{font-family:'Tahoma',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff;padding:20px;box-sizing:border-box}
+    .card{border:2px solid #1a2035;border-radius:12px;padding:24px 20px;text-align:center;max-width:280px;width:100%}
+    .name{font-size:16px;font-weight:800;color:#1a2035;margin-bottom:4px}
+    .stage{font-size:12px;color:#64748b;margin-bottom:16px}
+    img{width:180px;height:180px;display:block;margin:0 auto 12px}
+    .code{font-size:14px;font-weight:800;color:#4f8ef7;letter-spacing:1px;margin-bottom:2px}
+    .sub{font-size:11px;color:#94a3b8}
+  </style></head><body>
+  <div class="card">
+    <div class="name">${st.name}</div>
+    <div class="stage">${stage?.name||''} ${group?'— '+group.name:''}</div>
+    ${qrSrc ? '<img src="'+qrSrc+'">' : ''}
+    <div class="code">${st.barcode}</div>
+    <div class="sub">${st.name} · ${stage?.name||''}</div>
+  </div>
+  <script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);}<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+function downloadStudentBarcode(){
+  if(!_barcodeCurrentStudent) return;
+  const st = _barcodeCurrentStudent;
+  const stage = (state.stages||[]).find(s=>s.id===st.stageId);
+  const group = (state.groups||[]).find(g=>g.id===st.groupId);
+  const qrEl = _getBarcodeCanvas();
+
+  // إنشاء canvas مدمج (QR + نص)
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = 300;
+  finalCanvas.height = 360;
+  const ctx = finalCanvas.getContext('2d');
+
+  // خلفية بيضاء
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 300, 360);
+
+  // إطار
+  ctx.strokeStyle = '#1a2035';
+  ctx.lineWidth = 3;
+  ctx.roundRect(5, 5, 290, 350, 12);
+  ctx.stroke();
+
+  const drawText = function(){
+    // اسم الطالب
+    ctx.fillStyle = '#1a2035';
+    ctx.font = 'bold 16px Tahoma';
+    ctx.textAlign = 'center';
+    ctx.fillText(st.name, 150, 50);
+    // المرحلة
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px Tahoma';
+    ctx.fillText((stage?.name||'') + (group?' — '+group.name:''), 150, 70);
+    // الكود
+    ctx.fillStyle = '#4f8ef7';
+    ctx.font = 'bold 15px Tahoma';
+    ctx.fillText(st.barcode, 150, 300);
+    // تفصيل
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px Tahoma';
+    ctx.fillText(st.name + ' · ' + (stage?.name||''), 150, 320);
+
+    const link = document.createElement('a');
+    link.download = 'barcode-' + st.barcode + '.png';
+    link.href = finalCanvas.toDataURL('image/png');
+    link.click();
+    toast('تم تنزيل الباركود ✅');
+  };
+
+  if(qrEl && qrEl.tagName === 'CANVAS'){
+    // رسم QR في المنتصف
+    ctx.drawImage(qrEl, 50, 85, 200, 200);
+    drawText();
+  } else if(qrEl && qrEl.tagName === 'IMG'){
+    const img = new Image();
+    img.onload = function(){ ctx.drawImage(img, 50, 85, 200, 200); drawText(); };
+    img.src = qrEl.src;
+  } else {
+    drawText();
+  }
 }
 </script>
 
