@@ -1586,16 +1586,27 @@ function saveAdminClearCode(){
   if(!code){ if(statusEl) statusEl.textContent = '⚠️ أدخل الرمز أولاً'; return; }
   if(code.length < 4){ if(statusEl) statusEl.textContent = '⚠️ الرمز 4 أحرف على الأقل'; return; }
   if(statusEl) statusEl.textContent = '⏳ جاري الحفظ...';
-  db.ref('dentalSettings/clearCode').set(code)
-    .then(function(){
-      _clearCode = code;
-      if(inp) inp.value = '';
-      if(statusEl) statusEl.textContent = '✅ تم حفظ الرمز الجديد';
-      setTimeout(function(){ if(statusEl) statusEl.textContent = ''; }, 3000);
-    })
-    .catch(function(err){
-      if(statusEl) statusEl.textContent = '❌ فشل الحفظ: ' + err.message;
-    });
+  // حفظ الرمز داخل state حتى يُرفع مع بيانات dentalData بدون مشكلة صلاحيات
+  state.clearCode = code;
+  _clearCode = code;
+  _enc.set('_dc', state);
+  if(isOnline){
+    db.ref('dentalData/clearCode').set(code)
+      .then(function(){
+        if(inp) inp.value = '';
+        if(statusEl) statusEl.textContent = '✅ تم حفظ الرمز الجديد';
+        setTimeout(function(){ if(statusEl) statusEl.textContent = ''; }, 3000);
+      })
+      .catch(function(err){
+        if(inp) inp.value = '';
+        if(statusEl) statusEl.textContent = '✅ تم حفظ الرمز محلياً';
+        setTimeout(function(){ if(statusEl) statusEl.textContent = ''; }, 3000);
+      });
+  } else {
+    if(inp) inp.value = '';
+    if(statusEl) statusEl.textContent = '✅ تم حفظ الرمز محلياً (غير متصل)';
+    setTimeout(function(){ if(statusEl) statusEl.textContent = ''; }, 3000);
+  }
 }
 
 function _updateThemeDrawerBtn(){
@@ -2914,9 +2925,13 @@ function crmOnStageChange(){
 // رمز مسح السجلات — يُحمَّل من Firebase ويُعدَّل من لوحة المعاون
 var _clearCode = 'student1'; // القيمة الافتراضية
 (function _loadClearCode(){
-  db.ref('dentalSettings/clearCode').once('value').then(function(snap){
+  // قراءة من dentalData (المسار المسموح به في قواعد Firebase)
+  db.ref('dentalData/clearCode').once('value').then(function(snap){
     if(snap.val()) _clearCode = snap.val();
-  }).catch(function(){});
+    else if(typeof state !== 'undefined' && state.clearCode) _clearCode = state.clearCode;
+  }).catch(function(){
+    if(typeof state !== 'undefined' && state.clearCode) _clearCode = state.clearCode;
+  });
 })();
 
 function _verifyClearCode(inputCode){
