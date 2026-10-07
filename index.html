@@ -813,6 +813,18 @@ body:not(.light-mode) .wb-3{color:#fca5a5}
 .scan-chip b{color:var(--present)}
 
 /* ---------- أدوات سريعة + شريط الحفظ ---------- */
+.att-hint{font-size:12.5px;color:var(--text2);background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:8px 12px;margin-bottom:10px}
+.quick-actions:empty{display:none}
+.pm-list{display:flex;flex-direction:column;gap:8px}
+.pm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--glass2);border:1px solid var(--border)}
+.pm-order{display:flex;flex-direction:column;gap:4px}
+.pm-order .si-btn{padding:3px 8px;font-size:11px}
+.pm-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pm-info b{font-size:15px}
+.pm-info small{font-size:12px;color:var(--text3)}
+.pm-row .tool-btn{white-space:nowrap;padding:9px 12px}
+.pm-grads{margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--glass)}
+.pm-grads summary{cursor:pointer;font-weight:800;font-size:14px}
 .quick-actions{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 6px}
 .quick-actions button{flex:1;min-width:max-content;padding:9px 12px;border-radius:10px;background:var(--glass2);border:1px solid var(--border);color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;transition:var(--transition)}
 .quick-actions button:hover{background:var(--glass3);color:var(--text)}
@@ -1318,6 +1330,15 @@ body:not(.light-mode) .wb-3{color:#fca5a5}
       <button class="asd-close" onclick="closeAdminSettings()">✕</button>
     </div>
     <div class="asd-body">
+
+      <!-- الترحيل والتخرّج -->
+      <button class="asd-item" onclick="closeAdminSettings();openPromotionManager()">
+        <div class="asd-item-info">
+          <div class="asd-item-label">ترحيل الطلبة والتخرّج</div>
+          <div class="asd-item-sub">ترحيل مرحلة للتالية مع استثناء الراسبين، وتخريج الدفعة</div>
+        </div>
+        <div class="asd-item-icon">⏫</div>
+      </button>
 
       <!-- بصمة الوجه -->
       <button class="asd-item" onclick="closeAdminSettings();openAdminBioManager()">
@@ -2352,6 +2373,7 @@ let modalCallback=null;
 function openModal(title,bodyHTML,callback,confirmText){
   document.getElementById('modalOverlay').classList.remove('wide');
   document.getElementById('modalConfirmBtn').textContent=confirmText||'حفظ';
+  document.querySelector('#modalOverlay .btn-cancel').style.display='';
   document.getElementById('modalTitle').textContent=title;
   document.getElementById('modalBody').innerHTML=bodyHTML;
   modalCallback=callback;
@@ -2664,13 +2686,7 @@ function renderAttendance(subjectId,groupId){
       +'<button data-m="barcode" onclick="setAttMethod(\'barcode\')"><span class="mi">📷</span><span class="mt">بالباركود</span><span class="ms">مسح بالكاميرا</span></button>'
     +'</div>'
     +'<div id="method-body"></div>'
-    +(students.length?'<div class="quick-actions">'
-      +'<button onclick="markAll(\'present\')">✅ الكل حاضر</button>'
-      +'<button onclick="markAll(\'absent\')">❌ الكل غائب</button>'
-      +'<button onclick="markRestAbsent()">⏳ الباقي غائب</button>'
-      +'<button onclick="resetAttendance()">↺ إعادة تعيين</button>'
-      +'<button onclick="addStudentToGroup('+stageId+','+groupId+')">＋ طالب</button>'
-    +'</div>':'')
+    +'<div class="quick-actions" id="quick-actions"></div>'
     +'<div class="att-savebar">'
       +'<div class="asv-info" id="asv-info"></div>'
       +'<button class="btn-save-all" onclick="saveAttendance('+subjectId+','+groupId+')">💾 <span id="asv-label">حفظ وإرسال</span></button>'
@@ -2697,10 +2713,22 @@ function renderAttendance(subjectId,groupId){
   }
 }
 
+// وضع الاسم والرقم: الجميع حاضر افتراضياً، ويُضغط على الغائب فقط
+function _fillDefaultPresent(c){
+  if(_attMethod==='barcode' || (window._scanStart||{})[c.sessKey]) return;
+  const m=_marks(c.sessKey);
+  groupStudents(c.stageId,c.groupId).forEach(function(st){ if(!m[st.id]) m[st.id]='present'; });
+}
 function setAttMethod(m){
+  const c=_attCtx;
+  // الباركود يبدأ من الصفر: الحاضر هو من يُمسح فقط (نُبقي الغياب المحدد يدوياً)
+  if(m==='barcode' && c && _attMethod!=='barcode' && !(window._scanStart||{})[c.sessKey] && !getActiveSession(c.sessKey)){
+    const mk=_marks(c.sessKey);
+    Object.keys(mk).forEach(function(k){ if(mk[k]==='present') delete mk[k]; });
+  }
   _attMethod=m;
   try{ localStorage.setItem('attMethod',m); }catch(e){}
-  renderMethodBody();
+  renderMethodBody(); _attStats();
   if(m==='barcode' && _attCtx && groupStudents(_attCtx.stageId,_attCtx.groupId).length) openScanner(_attCtx.subjectId,_attCtx.groupId);
 }
 
@@ -2710,7 +2738,6 @@ function _rowHTML(st,v){
     +'<span class="st-num">'+st.num+'</span>'
     +'<div class="st-main"><div class="st-name">'+esc(st.name)+'</div><div class="st-warn" id="warn-'+st.id+'">'+warnBadgeHTML(liveAbsCount(st.id,c.subjectId,c.groupId))+'</div></div>'
     +'<div class="att-toggle">'
-      +'<button class="att-btn present-btn'+(v==='present'?' active':'')+'" onclick="attMark('+st.id+',\'present\')" aria-label="حاضر">✓<span> حاضر</span></button>'
       +'<button class="att-btn absent-btn'+(v==='absent'?' active':'')+'" onclick="attMark('+st.id+',\'absent\')" aria-label="غائب">✕<span> غائب</span></button>'
     +'</div>'
   +'</div>';
@@ -2723,18 +2750,27 @@ function renderMethodBody(){
   const c=_attCtx, el=document.getElementById('method-body');
   if(!c || !el) return;
   document.querySelectorAll('.method-seg button').forEach(function(b){ b.classList.toggle('active', b.dataset.m===_attMethod); });
-  const students=groupStudents(c.stageId,c.groupId), marks=_marks(c.sessKey);
+  const students=groupStudents(c.stageId,c.groupId);
+  _fillDefaultPresent(c);
+  const marks=_marks(c.sessKey);
+  const qa=document.getElementById('quick-actions');
+  if(qa){
+    const add='<button onclick="addStudentToGroup('+c.stageId+','+c.groupId+')">＋ طالب</button>';
+    qa.innerHTML=!students.length?'' : _attMethod==='barcode'
+      ? '<button onclick="markRestAbsent()">⏳ الباقي غائب</button><button onclick="resetAttendance()">↺ إعادة تعيين</button>'+add
+      : '<button onclick="markAll(\'present\')">✅ الكل حاضر</button><button onclick="markAll(\'absent\')">❌ الكل غائب</button>'+add;
+  }
   if(!students.length){
     el.innerHTML='<div class="empty-state"><div class="es-icon">🎓</div><p>لا يوجد طلاب في هذا الكروب.</p><button class="btn-add" style="margin:14px auto 0" onclick="addStudentToGroup('+c.stageId+','+c.groupId+')">＋ إضافة طلاب</button></div>';
     return;
   }
   if(_attMethod==='number'){
     el.innerHTML='<div class="num-entry">'
-        +'<input id="numQuick" class="num-input" type="text" inputmode="numeric" autocomplete="off" placeholder="رقم الطالب" onkeydown="if(event.key===\'Enter\'){event.preventDefault();numQuickMark(\'present\');}">'
-        +'<button class="num-go p" onclick="numQuickMark(\'present\')">✓ حاضر</button>'
+        +'<input id="numQuick" class="num-input" type="text" inputmode="numeric" autocomplete="off" placeholder="رقم الغائب" onkeydown="if(event.key===\'Enter\'){event.preventDefault();numQuickMark(\'absent\');}">'
         +'<button class="num-go a" onclick="numQuickMark(\'absent\')">✕ غائب</button>'
+        +'<button class="num-go p" onclick="numQuickMark(\'present\')">✓ حاضر</button>'
       +'</div>'
-      +'<div class="num-feedback" id="numFeedback">اكتب الرقم ثم اضغط إدخال، أو اضغط المربع: مرة = حاضر · مرتين = غائب · ثلاث = إلغاء</div>'
+      +'<div class="num-feedback" id="numFeedback">الجميع حاضر 🟢 — اضغط مربع الغائب مرة ليصبح أحمر 🔴 (ضغطة ثانية تعيده حاضراً)، أو اكتب رقمه واضغط إدخال</div>'
       +'<div class="num-grid">'+students.map(function(st){return _tileHTML(st,marks[st.id]);}).join('')+'</div>';
   } else if(_attMethod==='barcode'){
     el.innerHTML='<div class="scan-card">'
@@ -2746,7 +2782,8 @@ function renderMethodBody(){
       +'<div class="scan-chips" id="scanChips"></div>';
     _paintScanInfo();
   } else {
-    el.innerHTML='<div class="search-bar"><input class="search-input" id="student-search" placeholder="🔍 ابحث بالاسم أو الرقم..." oninput="filterStudents()"></div>'
+    el.innerHTML='<div class="att-hint">الجميع حاضر 🟢 — اضغط ✕ على الغائب فقط (ضغطة ثانية تعيده حاضراً)</div>'
+      +'<div class="search-bar"><input class="search-input" id="student-search" placeholder="🔍 ابحث بالاسم أو الرقم..." oninput="filterStudents()"></div>'
       +'<div class="st-list" id="students-tbody">'+students.map(function(st){return _rowHTML(st,marks[st.id]);}).join('')+'</div>';
   }
 }
@@ -2758,8 +2795,7 @@ function _paintStudent(id){
   const row=document.getElementById('row-'+id);
   if(row){
     row.classList.remove('is-present','is-absent'); if(v) row.classList.add('is-'+v);
-    const pb=row.querySelector('.present-btn'), ab=row.querySelector('.absent-btn');
-    if(pb) pb.classList.toggle('active', v==='present');
+    const ab=row.querySelector('.absent-btn');
     if(ab) ab.classList.toggle('active', v==='absent');
   }
   const tile=document.getElementById('tile-'+id);
@@ -2780,21 +2816,21 @@ function _attStats(){
   if(pa) pa.style.width=(n?a/n*100:0)+'%';
   const act=getActiveSession(c.sessKey);
   set('asv-label', act ? 'تحديث الجلسة' : 'حفظ وإرسال');
-  set('asv-info', n ? ('تم تسجيل '+(p+a)+' من '+n+(pend?(' · متبقٍ '+pend):' ✓')) : '');
+  set('asv-info', !n ? '' : _attMethod==='barcode' ? ('تم مسح '+p+' من '+n+(a?(' · غائب '+a):'')) : ('حاضر '+p+' · غائب '+a+' من '+n));
   _paintScanInfo();
 }
 
+// ✕ يقلب الطالب بين غائب وحاضر
 function attMark(id,status){
   const c=_attCtx; if(!c) return;
   const m=_marks(c.sessKey);
-  if(m[id]===status) delete m[id]; else m[id]=status;
+  m[id] = (status==='absent' && m[id]==='absent') ? 'present' : status;
   _paintStudent(id); _attStats();
 }
 function tileCycle(id){
   const c=_attCtx; if(!c) return;
   const m=_marks(c.sessKey);
-  m[id] = !m[id] ? 'present' : m[id]==='present' ? 'absent' : undefined;
-  if(!m[id]) delete m[id];
+  m[id] = m[id]==='absent' ? 'present' : 'absent';
   _paintStudent(id); _attStats();
 }
 function numQuickMark(status){
@@ -2808,9 +2844,10 @@ function numQuickMark(status){
     if(fb){ fb.className='num-feedback err'; fb.textContent='⚠️ لا يوجد طالب بالرقم '+n; }
     inp.select(); return;
   }
+  const was=_marks(c.sessKey)[st.id];
   _marks(c.sessKey)[st.id]=status;
   _paintStudent(st.id); _attStats();
-  if(fb){ fb.className='num-feedback '+(status==='present'?'ok':'bad'); fb.textContent=(status==='present'?'✅ ':'❌ ')+n+' — '+st.name; }
+  if(fb){ fb.className='num-feedback '+(status==='present'?'ok':'bad'); fb.textContent=(status==='present'?'✅ ':'❌ ')+n+' — '+st.name+(was===status?' (مسجَّل مسبقاً)':''); }
   const tile=document.getElementById('tile-'+st.id);
   if(tile){ tile.classList.add('flash'); setTimeout(function(){ tile.classList.remove('flash'); },600); }
   inp.value=''; inp.focus();
@@ -2830,8 +2867,8 @@ function markRestAbsent(){
 }
 function resetAttendance(){
   const c=_attCtx; if(!c) return;
-  if(!confirm('إعادة تعيين جميع الاختيارات غير المحفوظة؟')) return;
-  window._sessionAtt[c.sessKey]={};
+  if(!confirm(_attMethod==='barcode'?'مسح نتائج المسح غير المحفوظة؟':'إرجاع الجميع حاضرين؟')) return;
+  window._sessionAtt[c.sessKey]={};      // وضع الاسم/الرقم يعيد ملأها حضوراً تلقائياً
   renderMethodBody(); _attStats();
   toast('تم إعادة التعيين','i');
 }
@@ -3068,19 +3105,15 @@ function _groupName(id){ if(!id) return 'بدون كروب'; const g=(state.grou
 function renderSettings(){
   const stages=state.stages||[], groups=state.groups||[], subjects=state.subjects||[];
   const students=activeStudents();
-  const grads=(state.students||[]).filter(function(s){return s.graduated;});
 
   const firebaseHTML='<div class="settings-item"><div><div class="si-info">قاعدة البيانات السحابية</div><div class="si-meta">Firebase Realtime Database · يُرفع ما تغيّر فقط</div></div>'
     +'<span style="font-size:13px;font-weight:700;color:'+(isOnline?'var(--present)':'var(--absent)')+'">'+(isOnline?'🟢 متصل':'🔴 غير متصل')+'</span></div>';
 
   let stagesHTML='<div class="settings-list">';
   if(!stages.length) stagesHTML+='<p class="muted-p">لا توجد مراحل.</p>';
-  else stagesHTML+='<p class="muted-p">ترتيب المراحل هنا يحدد "المرحلة التالية" عند الترحيل.</p>';
   stages.forEach(function(s,i){
     stagesHTML+='<div class="settings-item"><div><div class="si-info">'+(i+1)+'. '+esc(s.name)+'</div><div class="si-meta">'+groups.filter(function(g){return g.stageId===s.id;}).length+' كروب · '+students.filter(function(st){return st.stageId===s.id;}).length+' طالب</div></div>'
       +'<div class="si-actions">'
-        +'<button class="si-btn si-move" '+(i===0?'disabled':'')+' onclick="moveStage('+s.id+',-1)" title="تقديم">▲</button>'
-        +'<button class="si-btn si-move" '+(i===stages.length-1?'disabled':'')+' onclick="moveStage('+s.id+',1)" title="تأخير">▼</button>'
         +'<button class="si-btn si-edit" onclick="editStage('+s.id+')">✏️</button>'
         +'<button class="si-btn si-del" onclick="deleteStage('+s.id+');renderSettings()">🗑️</button>'
       +'</div></div>';
@@ -3123,13 +3156,6 @@ function renderSettings(){
         +'<div class="si-actions"><button class="student-barcode-btn" onclick="openBarcodeModal('+st.id+')">🔲</button><button class="si-btn si-edit" onclick="editStudentSettings('+st.id+')">✏️</button><button class="si-btn si-del" onclick="deleteStudentSettings('+st.id+')">🗑️</button></div></div>';
     }).join('')+'</div>';
 
-  let gradHTML='<div class="settings-list">';
-  if(!grads.length) gradHTML+='<p class="muted-p">لا يوجد خريجون بعد. يظهرون هنا بعد "تخرّج الدفعة" من المرحلة الأخيرة.</p>';
-  grads.slice().sort(function(a,b){return String(b.gradDate||'').localeCompare(String(a.gradDate||''));}).forEach(function(st){
-    gradHTML+='<div class="settings-item"><div><div class="si-info">🎓 '+esc(st.name)+'</div><div class="si-meta">'+esc(st.gradFrom||_stageName(st.stageId))+' · تخرّج '+esc(st.gradDate||'')+'</div></div>'
-      +'<div class="si-actions"><button class="si-btn si-edit" onclick="restoreGraduate('+st.id+')" title="إرجاع للمرحلة">↩️</button><button class="si-btn si-del" onclick="deleteStudentSettings('+st.id+')">🗑️</button></div></div>';
-  });
-  gradHTML+='</div>';
 
   const creds=BIO.getCreds('astath'), bioOk=BIO.isSupported();
   let bioItems;
@@ -3156,7 +3182,6 @@ function renderSettings(){
     + acc('stages','🎓','إدارة المراحل',stages.length,stagesHTML)
     + acc('groups','👥','إدارة الكروبات',groups.length,groupsHTML)
     + acc('subjects','📖','إدارة المواد',subjects.length,subjHTML)
-    + acc('graduates','🎓','الخريجون',grads.length,gradHTML)
     + acc('biometric','🔐','بصمة الوجه',null,bioHTML)
     + acc('firebase','☁️','حالة الاتصال',null,firebaseHTML)
     + acc('advanced','⚠️','خيارات متقدمة',null,advHTML);
@@ -3167,7 +3192,8 @@ function moveStage(id,dir){
   const arr=state.stages||[], i=arr.findIndex(function(s){return s.id===id;}), j=i+dir;
   if(i<0||j<0||j>=arr.length) return;
   const t=arr[i]; arr[i]=arr[j]; arr[j]=t;
-  save(); renderSettings();
+  save();
+  if(currentApp==='admin') openPromotionManager(); else renderSettings();
 }
 
 function filterSettingsStudents(rebuildGroups){
@@ -3190,14 +3216,10 @@ function filterSettingsStudents(rebuildGroups){
     el.style.display=ok?'':'none'; if(ok) shown++;
   });
   const cnt=document.getElementById('st-count'); if(cnt) cnt.textContent='عدد الظاهرين: '+shown;
-  // أدوات المرحلة: الترقيم والترحيل/التخرج
+  // أداة الترقيم (الترحيل والتخرّج من لوحة المعاون فقط)
   const bar=document.getElementById('st-stage-actions'); if(!bar) return;
-  if(!_stFilter.stage){ bar.innerHTML='<div class="st-hint">💡 اختر مرحلة لإظهار أدوات <b>الترقيم</b> و<b>الترحيل / التخرّج</b></div>'; return; }
-  const stages=state.stages||[], idx=stages.findIndex(function(s){return String(s.id)===_stFilter.stage;});
-  const next=stages[idx+1];
-  bar.innerHTML='<button class="tool-btn" onclick="openNumberingModal()">🔢 ترقيم الطلبة</button>'
-    +(next ? '<button class="tool-btn promo" onclick="openPromoteModal()">⏫ ترحيل إلى '+esc(next.name)+'</button>'
-           : '<button class="tool-btn grad" onclick="openPromoteModal()">🎓 تخرّج الدفعة</button>');
+  bar.innerHTML=_stFilter.stage ? '<button class="tool-btn" onclick="openNumberingModal()">🔢 ترقيم الطلبة</button>'
+    : '<div class="st-hint">💡 اختر مرحلة لإظهار أداة <b>ترقيم الطلبة</b></div>';
 }
 
 // ===== ترقيم الطلبة =====
@@ -3234,13 +3256,13 @@ function openNumberingModal(){
 
 // ===== الترحيل / التخرّج =====
 let _promo=null;
-function openPromoteModal(){
+function openPromoteModal(stageId){
+  if(currentApp!=='admin'){ toast('الترحيل من لوحة المعاون فقط','e'); return; }
   const stages=state.stages||[];
-  const stageId=parseInt(_stFilter.stage);
   const idx=stages.findIndex(function(s){return s.id===stageId;});
   if(idx<0) return;
   const stage=stages[idx], next=stages[idx+1]||null, isGrad=!next;
-  const gFilter=_stFilter.group?parseInt(_stFilter.group):null;
+  const gFilter=null;
   const list=activeStudents().filter(function(s){return s.stageId===stageId&&(gFilter===null||(s.groupId||0)===gFilter);})
     .sort(function(a,b){return ((a.groupId||0)-(b.groupId||0))||((parseInt(a.num)||1e9)-(parseInt(b.num)||1e9));});
   if(!list.length){ toast('لا يوجد طلاب في هذا النطاق','e'); return; }
@@ -3325,14 +3347,58 @@ function _applyPromotion(){
   save(); closeModal();
   toast((_promo.isGrad?'🎓 تخرّج ':'⏫ تم ترحيل ')+chosen.length+' طالب'+(stay?(' · بقي '+stay):'')+' ✅');
   _promo=null;
-  renderSettings();
+  _afterPromotionChange();
 }
 function restoreGraduate(id){
   const st=(state.students||[]).find(function(s){return s.id===id;}); if(!st) return;
   if(!confirm('إرجاع "'+st.name+'" إلى '+(_stageName(st.stageId)||'مرحلته')+'؟')) return;
   delete st.graduated; delete st.gradDate; delete st.gradFrom;
   if(groupStudents(st.stageId,st.groupId||0).some(function(s){return s!==st&&parseInt(s.num)===parseInt(st.num);})) st.num=nextNumFor(st.stageId,st.groupId||0);
-  save(); renderSettings(); toast('تم الإرجاع ✅');
+  save(); _afterPromotionChange(); toast('تم الإرجاع ✅');
+}
+function deleteGraduate(id){
+  const st=(state.students||[]).find(function(s){return s.id===id;}); if(!st) return;
+  if(!confirm('حذف الخريج "'+st.name+'" وكل سجلاته نهائياً؟')) return;
+  state.students=state.students.filter(function(x){return x.id!==id;});
+  state.attendance=(state.attendance||[]).filter(function(x){return x.studentId!==id;});
+  save(); _afterPromotionChange(); toast('تم الحذف','e');
+}
+// بعد أي ترحيل/تخرّج/إرجاع: تحديث لوحة المعاون وإعادة فتح نافذة الترحيل
+function _afterPromotionChange(){
+  if(currentApp==='admin'){ adminPopulateFilters(); applyAdminFilters(); renderAdminStats(); openPromotionManager(); }
+}
+
+// ===== نافذة إدارة الترحيل والتخرّج (لوحة المعاون) =====
+function openPromotionManager(){
+  if(currentApp!=='admin') return;
+  const stages=state.stages||[], active=activeStudents();
+  const grads=(state.students||[]).filter(function(s){return s.graduated;})
+    .sort(function(a,b){return String(b.gradDate||'').localeCompare(String(a.gradDate||''));});
+  let html='<div class="info-box">💡 ابدأ دائماً من <b>المرحلة الأخيرة</b> (تخرّج) ثم التي قبلها، حتى لا تختلط الدفعات. ترتيب المراحل هنا يحدد "المرحلة التالية".</div>';
+  if(!stages.length) html+='<p class="muted-p">لا توجد مراحل بعد.</p>';
+  html+='<div class="pm-list">';
+  stages.forEach(function(s,i){
+    const n=active.filter(function(st){return st.stageId===s.id;}).length;
+    const next=stages[i+1];
+    html+='<div class="pm-row">'
+      +'<div class="pm-order"><button class="si-btn si-move" '+(i===0?'disabled':'')+' onclick="moveStage('+s.id+',-1)" title="تقديم">▲</button>'
+      +'<button class="si-btn si-move" '+(i===stages.length-1?'disabled':'')+' onclick="moveStage('+s.id+',1)" title="تأخير">▼</button></div>'
+      +'<div class="pm-info"><b>'+(i+1)+'. '+esc(s.name)+'</b><small>'+n+' طالب'+(next?' · التالية: '+esc(next.name):' · المرحلة الأخيرة')+'</small></div>'
+      +(next ? '<button class="tool-btn promo" '+(n?'':'disabled')+' onclick="openPromoteModal('+s.id+')">⏫ ترحيل</button>'
+             : '<button class="tool-btn grad" '+(n?'':'disabled')+' onclick="openPromoteModal('+s.id+')">🎓 تخرّج</button>')
+      +'</div>';
+  });
+  html+='</div>';
+  html+='<details class="pm-grads"'+(grads.length?'':' ')+'><summary>🎓 الخريجون <span class="acc-count">'+grads.length+'</span></summary>';
+  if(!grads.length) html+='<p class="muted-p">لا يوجد خريجون بعد.</p>';
+  else html+='<div class="settings-list" style="margin-top:8px">'+grads.map(function(st){
+    return '<div class="settings-item"><div><div class="si-info">'+esc(st.name)+'</div><div class="si-meta">'+esc(st.gradFrom||_stageName(st.stageId))+' · تخرّج '+esc(st.gradDate||'')+'</div></div>'
+      +'<div class="si-actions"><button class="si-btn si-edit" onclick="restoreGraduate('+st.id+')" title="إرجاع للمرحلة">↩️</button><button class="si-btn si-del" onclick="deleteGraduate('+st.id+')">🗑️</button></div></div>';
+  }).join('')+'</div>';
+  html+='</details>';
+  openModal('⏫ ترحيل الطلبة والتخرّج', html, closeModal, 'إغلاق');
+  document.querySelector('#modalOverlay .btn-cancel').style.display='none';
+  document.getElementById('modalOverlay').classList.add('wide');
 }
 
 function editSubjectSettings(id){
