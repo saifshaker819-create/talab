@@ -5,7 +5,7 @@
  * - لا يلمس بيانات قاعدة البيانات ولا تسجيل الدخول أبداً
  * غيّر رقم الإصدار عند كل تحديث للملفات
  */
-const VERSION = 'dental-v2.0.0';
+const VERSION = 'dental-v2.0.1';
 const CORE = VERSION + '-core';
 const LIBS = VERSION + '-libs';
 
@@ -102,7 +102,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ملفات الموقع نفسه (الأيقونات، manifest): المخزن أولاً مع تحديث في الخلفية
+  // manifest.json: الشبكة دائماً حتى تصل أي تغييرات على هوية التطبيق فوراً
+  if (url.origin === self.location.origin && url.pathname.endsWith('/manifest.json')) {
+    event.respondWith(fetch(req).catch(() => caches.match(req)));
+    return;
+  }
+
+  // ملفات الموقع نفسه (الأيقونات): المخزن أولاً مع تحديث في الخلفية
   if (url.origin === self.location.origin) {
     event.respondWith((async () => {
       const cached = await caches.match(req);

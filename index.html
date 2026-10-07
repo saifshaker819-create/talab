@@ -69,6 +69,7 @@ window.addEventListener('error', function(e){
     };
     // روابط مطلقة — الروابط النسبية لا تعمل داخل blob
     manifest.start_url = location.href.split('#')[0].split('?')[0];
+    manifest.id = '/dental-absences-app';
     manifest.scope = new URL('./', location.href).href;
     function addManifest(href){
       var link = document.createElement('link');

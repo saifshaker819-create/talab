@@ -2,7 +2,7 @@
   "name": "نظام كلية طب الأسنان - جامعة ذي قار",
   "short_name": "طب الأسنان",
   "description": "نظام إدارة الغيابات والحضور لكلية طب الأسنان - جامعة ذي قار",
-  "id": "./",
+  "id": "/dental-absences-app",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
