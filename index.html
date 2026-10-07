@@ -3860,7 +3860,7 @@ window.pwaDebug = async function(){
   // 5. أيقونات
   let iconOk = false;
   try {
-    const r = await fetch('icons/icon-192.png', { cache: 'no-store' });
+    const r = await fetch('icon-192.png', { cache: 'no-store' });
     iconOk = r.ok;
   } catch(e){}
   checks.push(`${ok(iconOk)} أيقونة 192x192 متاحة`);
