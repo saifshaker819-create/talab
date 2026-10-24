@@ -1616,8 +1616,8 @@ details[open]>summary .pv-caret{transform:rotate(180deg)}
       <!-- رمز مسح السجلات -->
       <div class="asd-item" style="flex-direction:column;align-items:flex-start;gap:10px;cursor:default">
         <div class="asd-item-info">
-          <div class="asd-item-label">🔑 رمز مسح السجلات</div>
-          <div class="asd-item-sub">الرمز الذي يستخدمه الدكتور لمسح سجلات الغياب</div>
+          <div class="asd-item-label">🔑 رمز الحذف</div>
+          <div class="asd-item-sub">يطلبه البرنامج من الأستاذ عند أي حذف: طالب، كروب، مادة، مرحلة، سجلات — أو نقل طالب لمرحلة أخرى</div>
         </div>
         <div style="display:flex;gap:8px;width:100%;align-items:center">
           <input type="password" id="adminClearCodeInput" placeholder="الرمز الحالي..." style="flex:1;padding:9px 12px;border-radius:10px;background:var(--bg3);border:1.5px solid var(--border);color:var(--text);font-family:'Tajawal',sans-serif;font-size:14px;outline:none">
@@ -1706,8 +1706,8 @@ details[open]>summary .pv-caret{transform:rotate(180deg)}
         ⚠️ <strong>تحذير:</strong> سيتم حذف <strong>جميع</strong> سجلات الغياب والحضور نهائياً. لا يمكن التراجع عن هذه العملية. الطلاب والمواد لن تُحذف.
       </div>
       <div class="form-group" style="margin:0">
-        <label class="form-label">🔑 رمز المسح (يُحدَّد من لوحة المعاون)</label>
-        <input class="form-input" id="crm-pwd-all" type="password" placeholder="رمز المسح (يُحدَّد من لوحة المعاون)" onkeydown="if(event.key==='Enter')confirmClearAll()">
+        <label class="form-label">🔑 رمز الحذف (يُحدَّد من لوحة المعاون)</label>
+        <input class="form-input" id="crm-pwd-all" type="password" placeholder="رمز الحذف" onkeydown="if(event.key==='Enter')confirmClearAll()">
       </div>
       <button class="crm-confirm-btn" onclick="confirmClearAll()">🗑️ تأكيد مسح كل السجلات</button>
     </div>
@@ -1730,8 +1730,8 @@ details[open]>summary .pv-caret{transform:rotate(180deg)}
         </select>
       </div>
       <div class="form-group" style="margin:0">
-        <label class="form-label">🔑 رمز المسح (يُحدَّد من لوحة المعاون)</label>
-        <input class="form-input" id="crm-pwd-subj" type="password" placeholder="رمز المسح (يُحدَّد من لوحة المعاون)" onkeydown="if(event.key==='Enter')confirmClearSubject()">
+        <label class="form-label">🔑 رمز الحذف (يُحدَّد من لوحة المعاون)</label>
+        <input class="form-input" id="crm-pwd-subj" type="password" placeholder="رمز الحذف" onkeydown="if(event.key==='Enter')confirmClearSubject()">
       </div>
       <button class="crm-confirm-btn yellow" onclick="confirmClearSubject()">📖 تأكيد مسح سجلات المادة</button>
     </div>
@@ -3075,7 +3075,11 @@ function editStage(id){
   });
 }
 function deleteStage(id){
-  if(!confirm('حذف المرحلة وكل بياناتها؟')) return;
+  const sg=state.stages.find(x=>x.id===id); if(!sg) return;
+  const nG=(state.groups||[]).filter(x=>x.stageId===id).length, nS=(state.students||[]).filter(x=>x.stageId===id).length;
+  requireDeleteCode('🗑️ حذف مرحلة','سيتم حذف <b>"'+esc(sg.name)+'"</b> مع '+nG+' كروب و'+nS+' طالب وكل سجلاتهم نهائياً.',function(){ _deleteStageNow(id); });
+}
+function _deleteStageNow(id){
   state.stages=state.stages.filter(x=>x.id!==id);
   state.groups=(state.groups||[]).filter(x=>x.stageId!==id);
   const subs=(state.subjects||[]).filter(x=>x.stageId===id).map(x=>x.id);
@@ -3083,7 +3087,7 @@ function deleteStage(id){
   const gone=new Set((state.students||[]).filter(x=>x.stageId===id).map(x=>x.id));
   state.students=(state.students||[]).filter(x=>x.stageId!==id);
   state.attendance=(state.attendance||[]).filter(x=>!subs.includes(x.subjectId)&&!gone.has(x.studentId));
-  save(); renderStages(); toast('تم الحذف','e');
+  save(); _afterDelete(); toast('تم الحذف','e');
 }
 
 // ===== GROUPS =====
@@ -3148,13 +3152,17 @@ function editGroup(id){
   });
 }
 function deleteGroup(id){
-  if(!confirm('حذف الكروب؟')) return;
+  const g0=state.groups.find(x=>x.id===id); if(!g0) return;
+  const nS=(state.students||[]).filter(x=>x.groupId===id).length;
+  requireDeleteCode('🗑️ حذف كروب','سيتم حذف <b>"'+esc(g0.name)+'"</b> من '+esc(_stageName(g0.stageId))+' مع '+nS+' طالب وكل سجلاتهم نهائياً.',function(){ _deleteGroupNow(id); });
+}
+function _deleteGroupNow(id){
   const g=state.groups.find(x=>x.id===id);
   const gone=new Set((state.students||[]).filter(x=>x.groupId===id).map(x=>x.id));
   state.groups=state.groups.filter(x=>x.id!==id);
   state.students=(state.students||[]).filter(x=>x.groupId!==id);
   state.attendance=(state.attendance||[]).filter(x=>!gone.has(x.studentId));
-  save(); renderGroups(g.stageId); toast('تم الحذف','e');
+  save(); _afterDelete(); toast('تم الحذف','e');
 }
 
 // ===== SUBJECTS =====
@@ -3190,11 +3198,12 @@ function editSubject(id){
   });
 }
 function deleteSubject(id){
-  if(!confirm('حذف المادة وكل سجلاتها؟')) return;
-  const s=state.subjects.find(x=>x.id===id);
-  state.subjects=state.subjects.filter(x=>x.id!==id);
-  state.attendance=(state.attendance||[]).filter(x=>x.subjectId!==id);
-  save(); refreshCurrentView(); toast('تم الحذف','e');
+  const s=state.subjects.find(x=>x.id===id); if(!s) return;
+  requireDeleteCode('🗑️ حذف مادة','سيتم حذف مادة <b>"'+esc(s.name)+'"</b> وكل سجلات حضورها وغيابها نهائياً.',function(){
+    state.subjects=state.subjects.filter(x=>x.id!==id);
+    state.attendance=(state.attendance||[]).filter(x=>x.subjectId!==id);
+    save(); _afterDelete(); toast('تم الحذف','e');
+  });
 }
 
 // ===== ATTENDANCE =====
@@ -3817,7 +3826,7 @@ function renderSettings(){
     stagesHTML+='<div class="settings-item"><div><div class="si-info">'+(i+1)+'. '+esc(s.name)+'</div><div class="si-meta">'+groups.filter(function(g){return g.stageId===s.id;}).length+' كروب · '+students.filter(function(st){return st.stageId===s.id;}).length+' طالب</div></div>'
       +'<div class="si-actions">'
         +'<button class="si-btn si-edit" onclick="editStage('+s.id+')">✏️</button>'
-        +'<button class="si-btn si-del" onclick="deleteStage('+s.id+');renderSettings()">🗑️</button>'
+        +'<button class="si-btn si-del" onclick="deleteStage('+s.id+')">🗑️</button>'
       +'</div></div>';
   });
   stagesHTML+='</div>';
@@ -3826,7 +3835,7 @@ function renderSettings(){
   if(!groups.length) groupsHTML+='<p class="muted-p">لا توجد كروبات.</p>';
   groups.forEach(function(g){
     groupsHTML+='<div class="settings-item"><div><div class="si-info">'+esc(g.name)+'</div><div class="si-meta">'+esc(_stageName(g.stageId))+' · '+students.filter(function(st){return st.groupId===g.id;}).length+' طالب</div></div>'
-      +'<div class="si-actions"><button class="si-btn si-edit" onclick="editGroup('+g.id+')">✏️</button><button class="si-btn si-del" onclick="deleteGroup('+g.id+');renderSettings()">🗑️</button></div></div>';
+      +'<div class="si-actions"><button class="si-btn si-edit" onclick="editGroup('+g.id+')">✏️</button><button class="si-btn si-del" onclick="deleteGroup('+g.id+')">🗑️</button></div></div>';
   });
   groupsHTML+='</div>';
 
@@ -3964,6 +3973,26 @@ function orderedStages(){
     .sort(function(a,b){ return a.l-b.l || a.i-b.i; }).map(function(x){ return x.s; });
 }
 
+// يجب أن تكون المراحل مرقّمة 1..N بلا تكرار ولا فراغ — وإلا يُمنع الترحيل (حتى لا تُقفز مرحلة أو يُرحَّل للأدنى)
+function stageOrderCheck(){
+  const st=state.stages||[];
+  if(!st.length) return {ok:false, msg:'لا توجد مراحل'};
+  const lv=st.map(stageLevel), seen={};
+  for(let i=0;i<st.length;i++){
+    if(!(lv[i]>0)) return {ok:false, msg:'لا يمكن معرفة ترتيب "'+st[i].name+'" من اسمها'};
+    if(seen[lv[i]]) return {ok:false, msg:'"'+seen[lv[i]]+'" و"'+st[i].name+'" لهما نفس الترتيب ('+lv[i]+')'};
+    seen[lv[i]]=st[i].name;
+  }
+  for(let n=1;n<=st.length;n++) if(!seen[n]) return {ok:false, msg:'المرحلة رقم '+n+' غير موجودة في الترتيب (الترتيب يجب أن يكون متسلسلاً بلا فراغ)'};
+  return {ok:true};
+}
+// المرحلة التالية مباشرة (+1) فقط — أو null للمرحلة الأخيرة (تخرّج)
+function nextStageOf(stage){
+  const L=stageLevel(stage);
+  return (state.stages||[]).find(function(s){ return stageLevel(s)===L+1; }) || null;
+}
+function _freezeLevels(){ (state.stages||[]).forEach(function(s){ s.lvl=stageLevel(s); }); }
+
 // ===== السنة الدراسية =====
 function _yearOf(t){ const d=new Date(t), y=d.getFullYear(); return d.getMonth()>=8 ? (y+'-'+(y+1)) : ((y-1)+'-'+y); }
 function academicYear(){
@@ -4010,6 +4039,7 @@ let _promo_=null;
 function openPromoteModal(stageId){
   if(currentApp!=='admin'){ toast('الترحيل من لوحة المعاون فقط','e'); return; }
   if(!_archived()){ toast('📦 أرشِف السنة المنتهية أولاً ثم ابدأ الترحيل','e'); return; }
+  const oc=stageOrderCheck(); if(!oc.ok){ toast('⛔ صحّح ترتيب المراحل أولاً: '+oc.msg,'e'); return; }
   const info=_promoStatus().find(function(x){ return x.s.id===stageId; });
   if(!info) return;
   if(info.status==='done'){ toast('تم ترحيل هذه المرحلة — للتعديل استخدم سجل الترحيل','i'); return; }
@@ -4017,7 +4047,8 @@ function openPromoteModal(stageId){
     const nx=_promoStatus().find(function(x){return x.status==='next';});
     toast('⛔ الترحيل يبدأ من المرحلة الأخيرة نزولاً'+(nx?(' — رحّل "'+nx.s.name+'" أولاً'):''),'e'); return;
   }
-  const stage=info.s, next=info.next, isGrad=!next;
+  const stage=info.s, next=nextStageOf(info.s), isGrad=!next;
+  if((next||null)!==(info.next||null)){ toast('⛔ ترتيب المراحل غير صحيح','e'); return; }
   const list=activeStudents().filter(function(s){return s.stageId===stage.id;})
     .sort(function(a,b){return ((a.groupId||0)-(b.groupId||0))||((parseInt(a.num)||1e9)-(parseInt(b.num)||1e9));});
   if(!list.length){ toast('لا يوجد طلاب في هذه المرحلة','e'); return; }
@@ -4078,6 +4109,10 @@ function _applyPromotion(){
   const P=_promo_; if(!P) return;
   const info=_promoStatus().find(function(x){ return x.s.id===P.stageId; });
   if(!info || info.status!=='next'){ toast('تغيّرت البيانات — أعد فتح نافذة الترحيل','e'); closeModal(); renderPromoView(); return; }
+  // تحقق نهائي: المرحلة الهدف هي التالية مباشرة (+1)، والتخرّج للمرحلة الأخيرة فقط
+  const oc=stageOrderCheck(), curS=(state.stages||[]).find(function(s){return s.id===P.stageId;});
+  const nx=curS?nextStageOf(curS):null;
+  if(!oc.ok || !curS || (P.isGrad ? !!nx : (!nx || nx.id!==P.nextId))){ toast('⛔ لا يجوز: الترحيل يكون إلى المرحلة التالية مباشرة فقط','e'); closeModal(); renderPromoView(); return; }
   const chosen=new Set([...document.querySelectorAll('.promo-cb:checked')].map(function(c){return parseInt(c.value);}));
   const stay=P.ids.length-chosen.size;
   const verb=P.isGrad?'تخريج':'ترحيل';
@@ -4106,6 +4141,7 @@ function _applyPromotion(){
   }
   const pr=_promo();
   if(!pr.year) pr.year=academicYear();
+  _freezeLevels();   // يثبّت الترتيب: تغيير اسم مرحلة لاحقاً لا يغيّر ترتيبها
   _pmap('ops')[op]={from:P.stageId, to:P.isGrad?0:P.nextId, at:now};
   const done=_pmap('done');
   done['s'+P.stageId]={at:now, op:op};
@@ -4150,6 +4186,13 @@ function pvEntryAction(key, action){
   const st=e && (state.students||[]).find(function(s){return s.id===e.sid;});
   if(!e || !st){ toast('السجل أو الطالب غير موجود','e'); return; }
   const today=new Date().toISOString().slice(0,10);
+  // الطالب يجب أن يكون في المكان الذي وضعه فيه الترحيل — وإلا فقد نُقل بعدها ولا نحرّكه
+  const expect = e.res==='up' ? (st.stageId===e.ts && !st.graduated) : e.res==='grad' ? !!st.graduated : (st.stageId===e.fs && !st.graduated);
+  if(!expect){ toast('⛔ وضع الطالب تغيّر بعد الترحيل — لا يمكن تطبيق هذا التعديل','e'); return; }
+  if(action==='up' && e.ts){
+    const fsS=(state.stages||[]).find(function(s){return s.id===e.fs;}), nx=fsS?nextStageOf(fsS):null;
+    if(!nx || nx.id!==e.ts){ toast('⛔ لا يجوز: المرحلة الهدف ليست التالية مباشرة','e'); return; }
+  }
   if(action==='back'){
     if(e.res==='up'){
       const g=_validGroup(e.fs,e.fg);
@@ -4286,7 +4329,9 @@ function renderPromoView(){
 
   // الخطوة 2
   h+='<div class="pv-step '+(!archived?'lock':(allDone?'done':'cur'))+'" id="pvStep2"><div class="pv-step-h"><span class="pv-num">'+(allDone&&archived&&anyDone?'✓':'2')+'</span><div><h3>الترحيل — من الأخيرة إلى الأولى</h3><p>لا يمكن ترحيل مرحلة قبل إكمال المرحلة التي فوقها. الراسب يبقى في مرحلته.</p></div></div><div class="pv-stages">';
+  const oc=stageOrderCheck();
   if(!pst.length) h+='<div class="ad-empty"><i>🎓</i>لا توجد مراحل</div>';
+  else if(!oc.ok) h+='<div class="warn-box" style="margin-bottom:10px">⛔ <b>الترحيل متوقف:</b> '+esc(oc.msg)+'.<br>صحّح الترتيب من قسم <b>«🔢 ترتيب المراحل»</b> في الأسفل ثم اضغط «تثبيت الترتيب».</div>';
   for(let i=pst.length-1;i>=0;i--){
     const x=pst[i], s=x.s, last=!x.next;
     const d=(pr.done||{})['s'+s.id];
@@ -4302,11 +4347,11 @@ function renderPromoView(){
       }
     } else if(x.status==='next'){
       sub=x.cnt+' طالب · '+(last?'التالي: تخريج الدفعة':'التالي: ترحيل إلى '+esc(x.next.name));
-      btn='<button class="pv-go '+(last?'grad':'')+'" '+(archived?'':'disabled')+' onclick="openPromoteModal('+s.id+')">'+(last?'🎓 تخريج':'⏫ ترحيل')+'</button>';
+      btn='<button class="pv-go '+(last?'grad':'')+'" '+(archived&&oc.ok?'':'disabled')+' onclick="openPromoteModal('+s.id+')">'+(last?'🎓 تخريج':'⏫ ترحيل')+'</button>';
     } else if(x.status==='empty') sub='لا يوجد طلبة';
     else sub=x.cnt+' طالب · 🔒 بانتظار المرحلة الأعلى';
     const badge={done:'<span class="pv-res up">✓ تم</span>', next:'<span class="pv-res next">▶ الآن</span>', empty:'<span class="pv-res stay muted">—</span>', lock:'<span class="pv-res stay muted">🔒</span>'}[x.status];
-    h+='<div class="pv-stage '+x.status+'"><span class="pv-lv">'+(i+1)+'</span><div class="pv-stage-main"><b>'+esc(s.name)+'</b><small>'+sub+'</small></div>'+badge+btn+'</div>';
+    h+='<div class="pv-stage '+x.status+'"><span class="pv-lv">'+(stageLevel(s)||'?')+'</span><div class="pv-stage-main"><b>'+esc(s.name)+'</b><small>'+sub+'</small></div>'+badge+btn+'</div>';
     if(i>0) h+='<div class="pv-down">▼</div>';
   }
   h+='</div></div>';
@@ -4339,12 +4384,18 @@ function renderPromoView(){
 
   // ترتيب المراحل
   const os=orderedStages();
-  h+='<details class="pv-sec pv-fold"><summary><h3>🔢 ترتيب المراحل</h3><span class="pv-caret">▾</span></summary>'
+  h+='<details class="pv-sec pv-fold"'+(oc.ok?'':' open')+' id="pvOrder"><summary><h3>🔢 ترتيب المراحل '+(oc.ok?'<span class="pv-res up">✓ سليم</span>':'<span class="pv-res stay">يحتاج تصحيح</span>')+'</h3><span class="pv-caret">▾</span></summary>'
     +'<p class="ad-muted">يُحدَّد الترتيب تلقائياً من اسم المرحلة (الأولى، الثانية…). عدّله هنا فقط إذا كان الاسم لا يدل على الترتيب.'+(anyDone?' <b>مقفل أثناء دورة الترحيل.</b>':'')+'</p>'
     +'<div class="pv-order">'+os.map(function(s,i){
       return '<label class="pv-order-row"><span>'+esc(s.name)+'</span><select '+(anyDone?'disabled':'')+' onchange="pvSetLevel('+s.id+',this.value)">'+os.map(function(_,j){return '<option value="'+(j+1)+'"'+(j===i?' selected':'')+'>المرحلة '+(j+1)+'</option>';}).join('')+'</select></label>';
-    }).join('')+'</div></details>';
+    }).join('')+'</div>'+(!oc.ok&&!anyDone?'<button class="pv-go wide" style="margin-top:10px" onclick="pvFixOrder()">✔️ تثبيت الترتيب الظاهر</button>':'')+'</details>';
   body.innerHTML=h;
+}
+function pvFixOrder(){
+  const os=orderedStages();
+  if(!confirm('تثبيت الترتيب:\n'+os.map(function(s,i){return (i+1)+' — '+s.name;}).join('\n'))) return;
+  os.forEach(function(x,j){ x.lvl=j+1; });
+  save(); renderPromoView(); toast('تم تثبيت ترتيب المراحل ✅');
 }
 function pvSetLevel(stageId,lvl){
   if(_promoStatus().some(function(x){return x.status==='done';})){ toast('الترتيب مقفل أثناء دورة الترحيل','e'); renderPromoView(); return; }
@@ -4419,12 +4470,7 @@ function editSubjectSettings(id){
     s.name=name; s.type=document.getElementById('inp-type').value; save(); closeModal(); renderSettings(); toast('تم التعديل');
   });
 }
-function deleteSubjectFromSettings(id){
-  if(!confirm('حذف المادة وكل سجلاتها؟')) return;
-  state.subjects=state.subjects.filter(function(x){return x.id!==id;});
-  state.attendance=(state.attendance||[]).filter(function(x){return x.subjectId!==id;});
-  save(); renderSettings(); toast('تم الحذف','e');
-}
+function deleteSubjectFromSettings(id){ deleteSubject(id); }
 function _editStGroups(selGroup){
   const stageId=parseInt(document.getElementById('inp-stage').value);
   const gs=(state.groups||[]).filter(function(g){return g.stageId===stageId;});
@@ -4449,20 +4495,27 @@ function editStudentSettings(id){
       if(moved && num===parseInt(st.num)) num=nextNumFor(stageId,groupId);
       if(!(num>0)) num=nextNumFor(stageId,groupId);
       const other=groupStudents(stageId,groupId).find(function(s){return s.id!==st.id&&parseInt(s.num)===num;});
-      if(other){
-        if(!confirm('الرقم '+num+' مستخدم للطالب "'+other.name+'".\nتبديل الرقمين بينهما؟')) return;
-        other.num = moved ? nextNumFor(stageId,groupId) : st.num;
+      if(other && !confirm('الرقم '+num+' مستخدم للطالب "'+other.name+'".\nتبديل الرقمين بينهما؟')) return;
+      const apply=function(){
+        if(other) other.num = moved ? nextNumFor(stageId,groupId) : st.num;
+        st.name=name; st.stageId=stageId; st.groupId=groupId; st.num=num;
+        save(); closeModal(); _afterDelete(); toast('تم التعديل');
+      };
+      if(stageId!==st.stageId){
+        requireDeleteCode('🔒 نقل طالب إلى مرحلة أخرى','نقل الطلبة بين المراحل يتم بالترحيل من لوحة المعاون فقط (مرحلة بمرحلة).<br>هذا الخيار <b>لتصحيح خطأ إدخال</b> فقط: نقل <b>"'+esc(st.name)+'"</b> من '+esc(_stageName(st.stageId))+' إلى '+esc(_stageName(stageId))+'.',apply,'🔒 تأكيد النقل');
+        return;
       }
-      st.name=name; st.stageId=stageId; st.groupId=groupId; st.num=num;
-      save(); closeModal(); renderSettings(); toast('تم التعديل');
+      apply();
     });
   _editStGroups(st.groupId);
 }
 function deleteStudentSettings(id){
-  if(!confirm('حذف الطالب وكل سجلاته نهائياً؟')) return;
-  state.students=state.students.filter(function(x){return x.id!==id;});
-  state.attendance=(state.attendance||[]).filter(function(x){return x.studentId!==id;});
-  save(); renderSettings(); toast('تم الحذف','e');
+  const st=state.students.find(function(x){return x.id===id;}); if(!st) return;
+  requireDeleteCode('🗑️ حذف طالب','سيتم حذف الطالب <b>"'+esc(st.name)+'"</b> وكل سجلاته نهائياً.',function(){
+    state.students=state.students.filter(function(x){return x.id!==id;});
+    state.attendance=(state.attendance||[]).filter(function(x){return x.studentId!==id;});
+    save(); _afterDelete(); toast('تم الحذف','e');
+  });
 }
 
 // ========== تنزيل باركودات الطلاب المُصفَّين ==========
@@ -4673,14 +4726,12 @@ function crmOnStageChange(){
   });
 }
 // رمز مسح السجلات — جزء من dentalData ويُعدَّل من لوحة المعاون
-function _verifyClearCode(inputCode){
-  return inputCode === (state.clearCode || 'student1');
-}
+function _verifyClearCode(inputCode){ return checkDeleteCode(inputCode); }
 
 function confirmClearAll(){
   const pwd=document.getElementById('crm-pwd-all').value;
   if(!pwd){toast('أدخل الرمز','e');return;}
-  if(!_verifyClearCode(pwd)){toast('❌ الرمز غير صحيح','e');return;}
+  if(!_verifyClearCode(pwd)){document.getElementById('crm-pwd-all').value='';return;}
   // مسح محلي + Firebase
   state.attendance=[];
   save();
@@ -4695,7 +4746,7 @@ function confirmClearSubject(){
   if(!stageId){toast('اختر المرحلة أولاً','e');return;}
   if(!subjectId){toast('اختر المادة أولاً','e');return;}
   if(!pwd){toast('أدخل الرمز','e');return;}
-  if(!_verifyClearCode(pwd)){toast('❌ الرمز غير صحيح','e');return;}
+  if(!_verifyClearCode(pwd)){document.getElementById('crm-pwd-subj').value='';return;}
   const subj=(state.subjects||[]).find(function(s){return String(s.id)===subjectId;});
   const stage=(state.stages||[]).find(function(s){return String(s.id)===stageId;});
   const before=(state.attendance||[]).length;
@@ -4904,6 +4955,49 @@ function _applyRole(role){
      ADMIN (INDEX) JAVASCRIPT
      ================================================ -->
 <script>
+// ===== حماية الحذف: الأستاذ يضيف ويعدّل فقط — أي حذف يحتاج الرمز الذي يضعه المعاون =====
+const _GATE_MAX=5, _GATE_LOCK_MS=2*60*1000;
+function _gateState(){ try{ return JSON.parse(localStorage.getItem('_dgate')||'{}'); }catch(e){ return {}; } }
+function _gateSet(o){ try{ localStorage.setItem('_dgate',JSON.stringify(o)); }catch(e){} }
+function _gateLocked(){ const g=_gateState(); return (g.until||0)>Date.now() ? Math.ceil((g.until-Date.now())/1000) : 0; }
+// يتحقق من الرمز مع قفل مؤقت بعد 5 محاولات خاطئة
+function checkDeleteCode(code){
+  const left=_gateLocked();
+  if(left){ toast('⛔ محاولات كثيرة خاطئة — انتظر '+left+' ثانية','e'); return false; }
+  if(String(code||'')===String(state.clearCode || 'student1')){ _gateSet({}); return true; }
+  const g=_gateState(); g.n=(g.n||0)+1;
+  if(g.n>=_GATE_MAX){ g.n=0; g.until=Date.now()+_GATE_LOCK_MS; toast('⛔ 5 محاولات خاطئة — الحذف مقفل دقيقتين','e'); }
+  else toast('❌ الرمز غير صحيح ('+(_GATE_MAX-g.n)+' محاولات متبقية)','e');
+  _gateSet(g);
+  return false;
+}
+function requireDeleteCode(title, desc, onOk, btnText){
+  // لوحة المعاون: صاحب الرمز — تأكيد عادي
+  if(currentApp==='admin'){ if(confirm(String(desc).replace(/<[^>]+>/g,''))) onOk(); return; }
+  closeDeleteGate();
+  const o=document.createElement('div');
+  o.className='crm-overlay show'; o.id='codeGate'; o.style.zIndex='11000';
+  o.innerHTML='<div class="crm-box"><div class="crm-head"><h3>'+title+'</h3><button class="crm-close" onclick="closeDeleteGate()">✕</button></div>'
+    +'<div class="crm-panel"><div class="crm-warn">'+desc+'</div>'
+    +'<div class="form-group" style="margin:0"><label class="form-label">🔑 رمز الحذف (يُحدَّد من لوحة المعاون)</label>'
+    +'<input class="form-input" id="cg-pwd" type="password" autocomplete="off" placeholder="أدخل الرمز"></div>'
+    +'<button class="crm-confirm-btn" id="cg-ok">'+(btnText||'🗑️ تأكيد الحذف')+'</button></div></div>';
+  document.body.appendChild(o);
+  o.addEventListener('click',function(e){ if(e.target===o) closeDeleteGate(); });
+  const inp=document.getElementById('cg-pwd');
+  const go=function(){
+    if(!inp.value){ toast('أدخل الرمز','e'); inp.focus(); return; }
+    if(!checkDeleteCode(inp.value)){ inp.value=''; inp.focus(); return; }
+    closeDeleteGate();
+    onOk();
+  };
+  document.getElementById('cg-ok').onclick=go;
+  inp.addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
+  setTimeout(function(){ inp.focus(); },60);
+}
+function closeDeleteGate(){ const g=document.getElementById('codeGate'); if(g) g.remove(); }
+function _afterDelete(){ if(currentApp==='admin') renderAdmin(); else refreshCurrentView(); }
+
 // ================================================
 // Excel — تصميم موحّد حديث لكل التنزيلات (من اليمين لليسار)
 // ================================================
