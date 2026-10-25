@@ -5,7 +5,7 @@
  * - لا يلمس بيانات قاعدة البيانات ولا تسجيل الدخول أبداً
  * غيّر رقم الإصدار عند كل تحديث للملفات
  */
-const VERSION = 'dental-v3.3.0';
+const VERSION = 'dental-v3.4.0';
 const CORE = VERSION + '-core';
 const LIBS = VERSION + '-libs';
 
