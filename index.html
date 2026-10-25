@@ -1327,6 +1327,31 @@ details[open]>summary .pv-caret{transform:rotate(180deg)}
   .ad-main{padding:0!important}
 }
 
+/* v3.2 — إضافة مادة: اختيار النوع */
+.type-checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.type-check{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:16px 10px;border-radius:14px;border:2px solid var(--border2);background:var(--glass2);cursor:pointer;font-weight:800;font-size:15.5px;color:var(--text2);transition:var(--transition);user-select:none}
+.type-check input{position:absolute;opacity:0;pointer-events:none}
+.type-check.on{border-color:var(--accent);background:rgba(79,142,247,.14);color:var(--text)}
+.type-check.on::after{content:'✓';position:absolute;top:6px;left:9px;font-size:13px;color:var(--accent)}
+.type-check small{font-size:11px;font-weight:700;color:var(--text3)}
+.sub-hint{font-size:12.5px;color:var(--accent4);margin-top:6px;line-height:1.6}
+.sub-hint:empty{display:none}
+
+/* استيراد القوائم */
+.imp-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.imp-row{border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--glass)}
+.imp-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.imp-h b{font-size:15px;flex:1}
+.imp-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.imp-warn{font-size:12.5px;color:var(--accent4);margin-top:8px;line-height:1.6}
+.imp-g{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;font-weight:700;color:var(--text2)}
+.imp-g select{flex:1;padding:8px 10px}
+.imp-names{margin-top:8px}
+.imp-names summary{cursor:pointer;font-size:12.5px;color:var(--accent);font-weight:700}
+.imp-names ol{margin:8px 24px 0 0;font-size:13.5px;line-height:1.9;columns:2;column-gap:24px}
+.imp-names li.dup{color:var(--text3);text-decoration:line-through}
+@media(max-width:700px){ .imp-names ol{columns:1} }
+
 </style>
 </head>
 <body>
@@ -1591,6 +1616,15 @@ details[open]>summary .pv-caret{transform:rotate(180deg)}
           <div class="asd-item-sub">أرشفة السنة المنتهية ثم الترحيل من المرحلة الأخيرة نزولاً</div>
         </div>
         <div class="asd-item-icon">⏫</div>
+      </button>
+
+      <!-- استيراد قوائم الطلبة -->
+      <button class="asd-item" onclick="closeAdminSettings();openImportStudents()">
+        <div class="asd-item-info">
+          <div class="asd-item-label">استيراد طلبة 2026/2027</div>
+          <div class="asd-item-sub">إدخال قوائم المراحل الثانية والثالثة والرابعة والخامسة كما في الملفات الرسمية</div>
+        </div>
+        <div class="asd-item-icon">📥</div>
       </button>
 
       <!-- بصمة الوجه -->
@@ -2970,6 +3004,7 @@ function refreshCurrentView(){
   const tab=tabs[idx];
   if(tab==='stages'){
     if(nav.subject) renderAttendance(nav.subject,nav.group);
+    else if(nav.sname && nav.stage) renderSubjectTypes(nav.stage,nav.group||0,nav.sname);
     else if(nav.group===0) renderSubjectsNoGroup(nav.stage);
     else if(nav.group) renderSubjects(nav.stage,nav.group);
     else if(nav.stage) renderGroups(nav.stage, nav.stage===_newStageId);
@@ -3024,25 +3059,12 @@ function showTab(tab){
 function nextId(){ return state.nextId++; }
 
 // ===== NAV =====
-let nav={stage:null,group:null,subject:null};
+let nav={stage:null,group:null,subject:null,sname:null};
 let _newStageId=null;
-function renderBreadcrumb(){
-  const el=document.getElementById('breadcrumb');
-  let items=[`<span class="bc-item" onclick="navTo('stages')">🏠 الرئيسية</span>`];
-  if(nav.stage){ const s=state.stages.find(x=>x.id===nav.stage); if(s) items.push(`<span class="bc-sep">›</span><span class="bc-item" onclick="navTo('groups')">${s.name}</span>`); }
-  if(nav.group){ const g=state.groups.find(x=>x.id===nav.group); if(g) items.push(`<span class="bc-sep">›</span><span class="bc-item" onclick="navTo('subjects')">${g.name}</span>`); }
-  if(nav.subject){ const s=state.subjects.find(x=>x.id===nav.subject); if(s) items.push(`<span class="bc-sep">›</span><span class="bc-item active">${s.name}</span>`); }
-  el.innerHTML=items.join('');
-}
-function navTo(level){
-  if(level==='stages'){nav={stage:null,group:null,subject:null};_newStageId=null;renderStages();}
-  else if(level==='groups'){nav.group=null;nav.subject=null;renderGroups(nav.stage);}
-  else if(level==='subjects'){nav.subject=null;if(nav.group===0) renderSubjectsNoGroup(nav.stage);else renderSubjects(nav.stage,nav.group);}
-}
 
 // ===== STAGES =====
 function renderStages(){
-  nav={stage:null,group:null,subject:null}; renderBreadcrumb();
+  nav={stage:null,group:null,subject:null,sname:null}; renderBreadcrumb();
   const stages=orderedStages();
   let html=`<div class="cards-header"><div class="cards-title">المراحل الدراسية <span>(${stages.length})</span></div><button class="btn-add" onclick="addStage()">＋ إضافة مرحلة</button></div><div class="cards-grid">`;
   if(!stages.length) html+=`<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">🎓</div><p>لا توجد مراحل. أضف مرحلة للبدء.</p></div>`;
@@ -3061,7 +3083,7 @@ function addStage(){
     if(!state.stages) state.stages=[];
     const newId=nextId();
     state.stages.push({id:newId,name}); save(); closeModal();
-    nav.stage=newId; nav.group=null; nav.subject=null; _newStageId=newId;
+    nav.stage=newId; nav.group=null; nav.subject=null; nav.sname=null; _newStageId=newId;
     renderGroups(newId,true);
     toast('تمت إضافة المرحلة');
   });
@@ -3092,7 +3114,7 @@ function _deleteStageNow(id){
 
 // ===== GROUPS =====
 function clickStage(stageId){
-  nav.stage=stageId; nav.group=null; nav.subject=null;
+  nav.stage=stageId; nav.group=null; nav.subject=null; nav.sname=null;
   const hasGroups=(state.groups||[]).some(function(g){return g.stageId===stageId;});
   if(!hasGroups){ nav.group=0; renderSubjectsNoGroup(stageId); }
   else { renderGroups(stageId); }
@@ -3114,27 +3136,6 @@ function renderGroups(stageId,isNew){
   document.getElementById('content-area').innerHTML=html;
 }
 function skipGroupToSubjects(stageId){ _newStageId=null; nav.group=0; nav.subject=null; renderSubjectsNoGroup(stageId); }
-function renderSubjectsNoGroup(stageId){
-  const stage=(state.stages||[]).find(s=>s.id===stageId); renderBreadcrumb();
-  const subs=(state.subjects||[]).filter(s=>s.stageId===stageId);
-  let html=`<div class="cards-header"><div class="cards-title">مواد <span>${stage?.name}</span></div><button class="btn-add" onclick="addSubjectNoGroup(${stageId})">＋ إضافة مادة</button></div><div class="cards-grid">`;
-  if(!subs.length) html+=`<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">📖</div><p>لا توجد مواد.</p></div>`;
-  else subs.forEach((s,i)=>{
-    const atts=(state.attendance||[]).filter(a=>a.subjectId===s.id&&a.groupId===0);
-    const last=atts.length?atts[atts.length-1]:null;
-    html+=`<div class="card" onclick="clickSubject(${s.id},0)"><div class="card-actions"><button class="card-action-btn ca-edit" onclick="event.stopPropagation();editSubject(${s.id})">✏️</button><button class="card-action-btn ca-del" onclick="event.stopPropagation();deleteSubject(${s.id})">🗑️</button></div><div class="card-icon">📖</div><div class="card-name">${esc(s.name)}</div><div class="card-meta">${s.type==='practical'?'🔬 عملي':'📖 نظري'} · ${last?'آخر تسجيل: '+last.date:'لم يُسجَّل بعد'}</div><div class="card-accent color-${(i+1)%5}"></div></div>`;
-  });
-  html+=`</div>`; document.getElementById('content-area').innerHTML=html;
-}
-function addSubjectNoGroup(stageId){
-  openModal('➕ إضافة مادة',`<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" placeholder="مثال: علم التشريح"></div><div class="form-group"><label class="form-label">نوع المادة</label><select class="form-select" id="inp-type"><option value="theoretical">📖 نظري</option><option value="practical">🔬 عملي</option></select></div>`,()=>{
-    const name=document.getElementById('inp-name').value.trim();
-    const type=document.getElementById('inp-type').value;
-    if(!name){toast('أدخل الاسم','e');return;}
-    if(!state.subjects) state.subjects=[];
-    state.subjects.push({id:nextId(),stageId,name,type}); save(); closeModal(); renderSubjectsNoGroup(stageId); toast('تمت الإضافة');
-  });
-}
 function addGroup(stageId){
   openModal('➕ إضافة كروب',`<div class="form-group"><label class="form-label">اسم الكروب</label><input class="form-input" id="inp-name" placeholder="مثال: كروب A"></div>`,()=>{
     const name=document.getElementById('inp-name').value.trim();
@@ -3167,43 +3168,217 @@ function _deleteGroupNow(id){
 
 // ===== SUBJECTS =====
 function clickGroup(groupId){ nav.group=groupId; nav.subject=null; renderSubjects(nav.stage,groupId); }
-function renderSubjects(stageId,groupId){
-  const group=(state.groups||[]).find(g=>g.id===groupId); renderBreadcrumb();
-  const subs=(state.subjects||[]).filter(s=>s.stageId===stageId);
-  let html=`<div class="cards-header"><div class="cards-title">مواد <span>${group?.name}</span></div><button class="btn-add" onclick="addSubject(${stageId},${groupId})">＋ إضافة مادة</button></div><div class="cards-grid">`;
-  if(!subs.length) html+=`<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">📖</div><p>لا توجد مواد.</p></div>`;
-  else subs.forEach((s,i)=>{
-    const atts=(state.attendance||[]).filter(a=>a.subjectId===s.id&&a.groupId===groupId);
-    const last=atts.length?atts[atts.length-1]:null;
-    html+=`<div class="card" onclick="clickSubject(${s.id},${groupId})"><div class="card-actions"><button class="card-action-btn ca-edit" onclick="event.stopPropagation();editSubject(${s.id})">✏️</button><button class="card-action-btn ca-del" onclick="event.stopPropagation();deleteSubject(${s.id})">🗑️</button></div><div class="card-icon">📖</div><div class="card-name">${esc(s.name)}</div><div class="card-meta">${s.type==='practical'?'🔬 عملي':'📖 نظري'} · ${last?'آخر تسجيل: '+last.date:'لم يُسجَّل بعد'}</div><div class="card-accent color-${(i+1)%5}"></div></div>`;
+// ===== SUBJECTS — المادة تظهر مرة واحدة؛ النظري والعملي نوعان تحتها =====
+// المواد بنفس الاسم في نفس المرحلة تُجمع في بطاقة واحدة (البيانات كما هي: سجل مستقل لكل نوع)
+function _subKey(name){ return _normAr(String(name||'').trim()).toLowerCase(); }
+function _stype(s){ return s && s.type==='practical' ? 'practical' : 'theoretical'; }
+const _TYPE_LBL={theoretical:'نظري', practical:'عملي'}, _TYPE_ICON={theoretical:'📖', practical:'🔬'};
+function subjectGroups(stageId){
+  const map=new Map(), out=[];
+  (state.subjects||[]).forEach(function(s){
+    if(s.stageId!==stageId) return;
+    const k=_subKey(s.name);
+    let g=map.get(k);
+    if(!g){ g={key:k, name:String(s.name).trim(), items:[]}; map.set(k,g); out.push(g); }
+    g.items.push(s);
   });
-  html+=`</div>`; document.getElementById('content-area').innerHTML=html;
+  out.forEach(function(g){ g.items.sort(function(a,b){ return (_stype(a)==='theoretical'?0:1)-(_stype(b)==='theoretical'?0:1) || a.id-b.id; }); });
+  return out;
+}
+function _findSubGroup(stageId,key){ return subjectGroups(stageId).find(function(g){ return g.key===key; }) || null; }
+function _lastRec(subIds,groupId){
+  let last=null;
+  (state.attendance||[]).forEach(function(a){ if(subIds.indexOf(a.subjectId)>=0 && (a.groupId||0)===(groupId||0) && (!last || (a.savedAt||0)>(last.savedAt||0))) last=a; });
+  return last;
+}
+function _lecCount(subId,groupId){ const s=new Set(); (state.attendance||[]).forEach(function(a){ if(a.subjectId===subId && (a.groupId||0)===(groupId||0)) s.add(a.sk); }); return s.size; }
+
+// قائمة المواد (مع كروب أو بدون)
+function _renderSubjectList(stageId,groupId){
+  nav.sname=null; renderBreadcrumb();
+  const title = groupId ? ((state.groups||[]).find(function(g){return g.id===groupId;})||{}).name : ((state.stages||[]).find(function(s){return s.id===stageId;})||{}).name;
+  const groups=subjectGroups(stageId);
+  let html='<div class="cards-header"><div class="cards-title">مواد <span>'+esc(title||'')+'</span></div><button class="btn-add" onclick="addSubject('+stageId+','+(groupId||0)+')">＋ إضافة مادة</button></div><div class="cards-grid">';
+  if(!groups.length) html+='<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">📖</div><p>لا توجد مواد.</p></div>';
+  groups.forEach(function(g,i){
+    const last=_lastRec(g.items.map(function(s){return s.id;}),groupId);
+    const kq=esc(JSON.stringify(g.key)).replace(/'/g,'&#39;');
+    html+='<div class="card" onclick="clickSubjectGroup('+stageId+','+(groupId||0)+','+kq+')"><div class="card-actions">'
+      +'<button class="card-action-btn ca-edit" onclick="event.stopPropagation();editSubjectGroup('+stageId+','+kq+')">✏️</button>'
+      +'<button class="card-action-btn ca-del" onclick="event.stopPropagation();deleteSubjectGroup('+stageId+','+kq+')">🗑️</button></div>'
+      +'<div class="card-icon">📖</div><div class="card-name">'+esc(g.name)+'</div>'
+      +'<div class="card-meta">'+(last?'آخر تسجيل: '+esc(last.date||''):'لم يُسجَّل بعد')+'</div><div class="card-accent color-'+((i+1)%5)+'"></div></div>';
+  });
+  html+='</div>';
+  document.getElementById('content-area').innerHTML=html;
+}
+function renderSubjects(stageId,groupId){ _renderSubjectList(stageId,groupId); }
+function renderSubjectsNoGroup(stageId){ _renderSubjectList(stageId,0); }
+
+// الضغط على مادة: نوع واحد ← الأسماء مباشرة · نوعان ← شاشة الاختيار
+function clickSubjectGroup(stageId,groupId,key){
+  const g=_findSubGroup(stageId,key); if(!g){ refreshCurrentView(); return; }
+  nav.sname=key;
+  if(g.items.length===1){ clickSubject(g.items[0].id,groupId); return; }
+  nav.subject=null;
+  renderSubjectTypes(stageId,groupId,key);
+}
+function renderSubjectTypes(stageId,groupId,key){
+  const g=_findSubGroup(stageId,key);
+  if(!g || g.items.length<2){ nav.sname=null; if(g && g.items.length===1){ nav.sname=key; clickSubject(g.items[0].id,groupId); } else navTo('subjects'); return; }
+  nav.sname=key; nav.subject=null; renderBreadcrumb();
+  const cnt={};
+  let html='<div class="cards-header"><div class="cards-title">'+esc(g.name)+' <span>اختر النوع</span></div></div><div class="cards-grid">';
+  g.items.forEach(function(s,i){
+    const t=_stype(s); cnt[t]=(cnt[t]||0)+1;
+    const n=g.items.filter(function(x){return _stype(x)===t;}).length;
+    const last=_lastRec([s.id],groupId), lec=_lecCount(s.id,groupId);
+    html+='<div class="card" onclick="clickSubject('+s.id+','+(groupId||0)+')">'
+      +'<div class="card-icon">'+_TYPE_ICON[t]+'</div><div class="card-name">'+_TYPE_LBL[t]+(n>1?' '+cnt[t]:'')+'</div>'
+      +'<div class="card-meta">'+(lec?lec+' محاضرة · آخر تسجيل: '+esc(last.date||''):'لم يُسجَّل بعد')+'</div><div class="card-accent color-'+(t==='practical'?3:1)+'"></div></div>';
+  });
+  html+='</div>';
+  document.getElementById('content-area').innerHTML=html;
+}
+
+// ===== إضافة مادة: الاسم + اختيار نظري / عملي / كلاهما =====
+function _typeChecksHTML(th,pr,lockTh,lockPr){
+  return '<div class="form-group"><label class="form-label">النوع (يمكن اختيار الاثنين)</label><div class="type-checks">'
+    +'<label class="type-check'+(th?' on':'')+'"><input type="checkbox" id="inp-th"'+(th?' checked':'')+' onchange="this.parentNode.classList.toggle(\'on\',this.checked)"><span>📖 نظري</span>'+(lockTh?'<small>موجود</small>':'')+'</label>'
+    +'<label class="type-check'+(pr?' on':'')+'"><input type="checkbox" id="inp-pr"'+(pr?' checked':'')+' onchange="this.parentNode.classList.toggle(\'on\',this.checked)"><span>🔬 عملي</span>'+(lockPr?'<small>موجود</small>':'')+'</label>'
+    +'</div></div>';
 }
 function addSubject(stageId,groupId){
-  openModal('➕ إضافة مادة',`<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" placeholder="مثال: علم التشريح"></div><div class="form-group"><label class="form-label">نوع المادة</label><select class="form-select" id="inp-type"><option value="theoretical">📖 نظري</option><option value="practical">🔬 عملي</option></select></div>`,()=>{
-    const name=document.getElementById('inp-name').value.trim();
-    const type=document.getElementById('inp-type').value;
-    if(!name){toast('أدخل الاسم','e');return;}
-    if(!state.subjects) state.subjects=[];
-    state.subjects.push({id:nextId(),stageId,name,type}); save(); closeModal(); renderSubjects(stageId,groupId); toast('تمت الإضافة');
-  });
+  const names=subjectGroups(stageId).map(function(g){return g.name;});
+  openModal('➕ إضافة مادة',
+    '<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" list="dl-subs" placeholder="مثال: علم التشريح" autocomplete="off" oninput="_addSubHint('+stageId+')">'
+    +'<datalist id="dl-subs">'+names.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist>'
+    +'<div class="sub-hint" id="sub-hint"></div></div>'
+    +_typeChecksHTML(true,false),
+    function(){
+      const name=document.getElementById('inp-name').value.trim().replace(/\s+/g,' ');
+      const want=[]; if(document.getElementById('inp-th').checked) want.push('theoretical'); if(document.getElementById('inp-pr').checked) want.push('practical');
+      if(!name){ toast('أدخل الاسم','e'); return; }
+      if(!want.length){ toast('اختر نظري أو عملي أو كليهما','e'); return; }
+      const g=_findSubGroup(stageId,_subKey(name));
+      const have=g?g.items.map(_stype):[];
+      const add=want.filter(function(t){ return have.indexOf(t)<0; });
+      if(!add.length){ toast('المادة "'+(g?g.name:name)+'" موجودة بهذا النوع مسبقاً','e'); return; }
+      if(!state.subjects) state.subjects=[];
+      const nm=g?g.name:name;
+      add.forEach(function(t){ state.subjects.push({id:nextId(), stageId:stageId, name:nm, type:t}); });
+      save(); closeModal(); _renderSubjectList(stageId,groupId);
+      toast(g ? ('أُضيف '+add.map(function(t){return _TYPE_LBL[t];}).join(' و')+' إلى "'+nm+'" ✅') : 'تمت الإضافة ✅');
+    });
 }
-function editSubject(id){
-  const s=state.subjects.find(x=>x.id===id);
-  openModal('✏️ تعديل المادة',`<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" value="${esc(s.name)}"></div><div class="form-group"><label class="form-label">نوع المادة</label><select class="form-select" id="inp-type"><option value="theoretical" ${(s.type||'theoretical')==='theoretical'?'selected':''}>📖 نظري</option><option value="practical" ${s.type==='practical'?'selected':''}>🔬 عملي</option></select></div>`,()=>{
-    const name=document.getElementById('inp-name').value.trim();
-    const type=document.getElementById('inp-type').value;
-    if(!name){toast('أدخل الاسم','e');return;}
-    s.name=name; s.type=type; save(); closeModal(); refreshCurrentView(); toast('تم التعديل');
-  });
+function addSubjectNoGroup(stageId){ addSubject(stageId,0); }
+function _addSubHint(stageId){
+  const v=document.getElementById('inp-name').value, el=document.getElementById('sub-hint'); if(!el) return;
+  const g=v.trim()?_findSubGroup(stageId,_subKey(v)):null;
+  if(!g){ el.textContent=''; return; }
+  const have=g.items.map(_stype);
+  el.innerHTML='ℹ️ المادة موجودة ('+have.map(function(t){return _TYPE_ICON[t]+' '+_TYPE_LBL[t];}).join(' + ')+') — اختر النوع الناقص لإضافته تحتها';
+  const th=document.getElementById('inp-th'), pr=document.getElementById('inp-pr');
+  th.checked=have.indexOf('theoretical')<0; pr.checked=have.indexOf('practical')<0;
+  th.parentNode.classList.toggle('on',th.checked); pr.parentNode.classList.toggle('on',pr.checked);
 }
-function deleteSubject(id){
-  const s=state.subjects.find(x=>x.id===id); if(!s) return;
-  requireDeleteCode('🗑️ حذف مادة','سيتم حذف مادة <b>"'+esc(s.name)+'"</b> وكل سجلات حضورها وغيابها نهائياً.',function(){
-    state.subjects=state.subjects.filter(x=>x.id!==id);
-    state.attendance=(state.attendance||[]).filter(x=>x.subjectId!==id);
+
+// ===== تعديل مادة (الاسم يُطبَّق على النوعين — إضافة نوع ناقص — إزالة نوع تحتاج الرمز) =====
+function editSubjectGroup(stageId,key){
+  const g=_findSubGroup(stageId,key); if(!g) return;
+  const have=g.items.map(_stype), hasTh=have.indexOf('theoretical')>=0, hasPr=have.indexOf('practical')>=0;
+  openModal('✏️ تعديل المادة',
+    '<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" value="'+esc(g.name)+'"></div>'
+    +_typeChecksHTML(hasTh,hasPr,hasTh,hasPr)
+    +'<div class="sub-hint">إلغاء تحديد نوع موجود يحذفه مع سجلاته (يحتاج رمز الحذف)</div>',
+    function(){
+      const name=document.getElementById('inp-name').value.trim().replace(/\s+/g,' ');
+      const th=document.getElementById('inp-th').checked, pr=document.getElementById('inp-pr').checked;
+      if(!name){ toast('أدخل الاسم','e'); return; }
+      if(!th && !pr){ toast('يجب أن يبقى نوع واحد على الأقل — لحذف المادة استخدم 🗑️','e'); return; }
+      const nk=_subKey(name);
+      if(nk!==key && _findSubGroup(stageId,nk)){ toast('يوجد مادة أخرى بهذا الاسم في المرحلة','e'); return; }
+      const removeT=[]; if(hasTh&&!th) removeT.push('theoretical'); if(hasPr&&!pr) removeT.push('practical');
+      const addT=[]; if(!hasTh&&th) addT.push('theoretical'); if(!hasPr&&pr) addT.push('practical');
+      const apply=function(){
+        const cur=_findSubGroup(stageId,key); if(!cur) return;
+        const rmIds=cur.items.filter(function(s){return removeT.indexOf(_stype(s))>=0;}).map(function(s){return s.id;});
+        cur.items.forEach(function(s){ s.name=name; });
+        if(rmIds.length){
+          state.subjects=state.subjects.filter(function(s){return rmIds.indexOf(s.id)<0;});
+          state.attendance=(state.attendance||[]).filter(function(a){return rmIds.indexOf(a.subjectId)<0;});
+        }
+        addT.forEach(function(t){ state.subjects.push({id:nextId(), stageId:stageId, name:name, type:t}); });
+        if(nav.sname===key) nav.sname=nk;
+        save(); closeModal(); refreshCurrentView(); toast('تم التعديل ✅');
+      };
+      if(removeT.length){
+        const n=(state.attendance||[]).filter(function(a){ return g.items.some(function(s){ return removeT.indexOf(_stype(s))>=0 && s.id===a.subjectId; }); }).length;
+        requireDeleteCode('🗑️ حذف نوع من المادة','سيتم حذف <b>'+removeT.map(function(t){return _TYPE_LBL[t];}).join(' و')+'</b> من مادة <b>"'+esc(g.name)+'"</b> مع '+n+' سجل حضور وغياب نهائياً.',apply);
+        return;
+      }
+      apply();
+    });
+}
+function deleteSubjectGroup(stageId,key){
+  const g=_findSubGroup(stageId,key); if(!g) return;
+  const ids=g.items.map(function(s){return s.id;});
+  const n=(state.attendance||[]).filter(function(a){return ids.indexOf(a.subjectId)>=0;}).length;
+  requireDeleteCode('🗑️ حذف مادة','سيتم حذف مادة <b>"'+esc(g.name)+'"</b> ('+g.items.map(function(s){return _TYPE_LBL[_stype(s)];}).join(' + ')+') مع '+n+' سجل حضور وغياب نهائياً.',function(){
+    state.subjects=state.subjects.filter(function(s){return ids.indexOf(s.id)<0;});
+    state.attendance=(state.attendance||[]).filter(function(a){return ids.indexOf(a.subjectId)<0;});
+    if(nav.sname===key){ nav.sname=null; nav.subject=null; }
     save(); _afterDelete(); toast('تم الحذف','e');
   });
+}
+// تعديل/حذف مادة بنوع واحد (من الإعدادات)
+function editSubject(id){
+  const s=state.subjects.find(function(x){return x.id===id;}); if(!s) return;
+  openModal('✏️ تعديل المادة','<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" value="'+esc(s.name)+'"></div><div class="form-group"><label class="form-label">نوع المادة</label><select class="form-select" id="inp-type"><option value="theoretical" '+(_stype(s)==='theoretical'?'selected':'')+'>📖 نظري</option><option value="practical" '+(_stype(s)==='practical'?'selected':'')+'>🔬 عملي</option></select></div>',function(){
+    const name=document.getElementById('inp-name').value.trim().replace(/\s+/g,' ');
+    const type=document.getElementById('inp-type').value;
+    if(!name){ toast('أدخل الاسم','e'); return; }
+    const g=_findSubGroup(s.stageId,_subKey(name));
+    if(g && g.items.some(function(x){ return x.id!==s.id && _stype(x)===type; })){ toast('يوجد "'+g.name+'" '+_TYPE_LBL[type]+' مسبقاً في هذه المرحلة','e'); return; }
+    s.name=g?g.name:name; s.type=type; save(); closeModal(); refreshCurrentView(); toast('تم التعديل');
+  });
+}
+function editSubjectSettings(id){ editSubject(id); }
+function deleteSubject(id){
+  const s=state.subjects.find(function(x){return x.id===id;}); if(!s) return;
+  requireDeleteCode('🗑️ حذف مادة','سيتم حذف <b>"'+esc(s.name)+'" ('+_TYPE_LBL[_stype(s)]+')</b> وكل سجلات حضورها وغيابها نهائياً.',function(){
+    state.subjects=state.subjects.filter(function(x){return x.id!==id;});
+    state.attendance=(state.attendance||[]).filter(function(x){return x.subjectId!==id;});
+    if(nav.subject===id) nav.subject=null;
+    save(); _afterDelete(); toast('تم الحذف','e');
+  });
+}
+
+// ===== التنقل =====
+function renderBreadcrumb(){
+  const el=document.getElementById('breadcrumb');
+  let items=['<span class="bc-item" onclick="navTo(\'stages\')">🏠 الرئيسية</span>'];
+  if(nav.stage){ const s=state.stages.find(function(x){return x.id===nav.stage;}); if(s) items.push('<span class="bc-sep">›</span><span class="bc-item" onclick="navTo(\'groups\')">'+esc(s.name)+'</span>'); }
+  if(nav.group){ const g=state.groups.find(function(x){return x.id===nav.group;}); if(g) items.push('<span class="bc-sep">›</span><span class="bc-item" onclick="navTo(\'subjects\')">'+esc(g.name)+'</span>'); }
+  const sub = nav.subject ? state.subjects.find(function(x){return x.id===nav.subject;}) : null;
+  const sg = nav.stage ? (nav.sname ? _findSubGroup(nav.stage,nav.sname) : (sub ? _findSubGroup(nav.stage,_subKey(sub.name)) : null)) : null;
+  if(sg){
+    const multi=sg.items.length>1;
+    items.push('<span class="bc-sep">›</span><span class="bc-item'+(sub&&multi?'':' active')+'"'+(sub&&multi?' onclick="navTo(\'types\')"':'')+'>'+esc(sg.name)+'</span>');
+    if(sub && multi) items.push('<span class="bc-sep">›</span><span class="bc-item active">'+_TYPE_ICON[_stype(sub)]+' '+_TYPE_LBL[_stype(sub)]+'</span>');
+  } else if(sub) items.push('<span class="bc-sep">›</span><span class="bc-item active">'+esc(sub.name)+'</span>');
+  el.innerHTML=items.join('');
+}
+function navTo(level){
+  if(level==='stages'){ nav={stage:null,group:null,subject:null,sname:null}; _newStageId=null; renderStages(); }
+  else if(level==='groups'){ nav.group=null; nav.subject=null; nav.sname=null; renderGroups(nav.stage); }
+  else if(level==='subjects'){ nav.subject=null; nav.sname=null; _renderSubjectList(nav.stage, nav.group||0); }
+  else if(level==='types'){
+    const sub=nav.subject?state.subjects.find(function(x){return x.id===nav.subject;}):null;
+    const key=nav.sname || (sub?_subKey(sub.name):null);
+    nav.subject=null;
+    if(key) renderSubjectTypes(nav.stage, nav.group||0, key); else navTo('subjects');
+  }
 }
 
 // ===== ATTENDANCE =====
@@ -4462,14 +4637,6 @@ function pvFinishYear(){
 }
 
 
-function editSubjectSettings(id){
-  const s=state.subjects.find(function(x){return x.id===id;});
-  openModal('✏️ تعديل المادة','<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" value="'+esc(s.name)+'"></div><div class="form-group"><label class="form-label">نوع المادة</label><select class="form-select" id="inp-type"><option value="theoretical" '+(s.type!=='practical'?'selected':'')+'>📖 نظري</option><option value="practical" '+(s.type==='practical'?'selected':'')+'>🔬 عملي</option></select></div>',function(){
-    const name=document.getElementById('inp-name').value.trim();
-    if(!name){toast('أدخل الاسم','e');return;}
-    s.name=name; s.type=document.getElementById('inp-type').value; save(); closeModal(); renderSettings(); toast('تم التعديل');
-  });
-}
 function deleteSubjectFromSettings(id){ deleteSubject(id); }
 function _editStGroups(selGroup){
   const stageId=parseInt(document.getElementById('inp-stage').value);
@@ -4955,6 +5122,78 @@ function _applyRole(role){
      ADMIN (INDEX) JAVASCRIPT
      ================================================ -->
 <script>
+// ===== استيراد قوائم طلبة السنة الدراسية 2026/2027 (من ملفات PDF الرسمية) =====
+const IMPORT_LISTS={year:'2026-2027', key:'y2026_2027', stages:{"2": [[1, "استغفار سعد حميد"], [2, "بثينة جميل هادي"], [3, "جعفر صادق كاظم"], [4, "جويرية احمد عبدالله"], [5, "حسين مرتضى رزاق"], [6, "حوراء علي حسين"], [8, "رقيه مصطفى مهدي"], [9, "زهراء حسن مدلول"], [10, "زينب فقدان عزيز"], [11, "غدير زياد طارق"], [12, "فاطمة ستار جبار"], [14, "فرح مالك إبراهيم"], [15, "كوثر صبيح فجر"], [16, "مرتضى خالد فرحان"], [17, "ملاك رعد سالم"], [18, "مؤمل محمد نعيم"], [19, "نور الهدى عباس فاضل"], [20, "نور الهدى علي يوسف"], [21, "علي صلاح ثجيل / استضافة"], [22, "شهد ارفد غالب / استضافة"], [23, "منتظر محمد سرحان عبيد"], [24, "فاطمة علي حسين"], [25, "حسين جاسب وحيد"], [26, "عباس رعد عارف"], [27, "سيف اوس عادل"], [28, "نور الهدى عدنان عبدالله / استضافة"], [29, "بنين صدام عبد العالي"], [30, "زهراء حسين عبد العالي"], [31, "زهراء فالح علي"]], "3": [[1, "ايات عبد الشهيد نايف"], [2, "اية حميد رشيد"], [3, "اية عباس داخل"], [4, "اية محمد حسن جودة"], [5, "حسام عقيل مسعد"], [6, "حسين طعيمه ياسر عودة"], [7, "حوراء عقيل طالب"], [8, "حوراء كاظم صبار"], [9, "زهراء محمد زغير"], [10, "زينب ايمن مهدي"], [11, "زينب لفته حذوان"], [12, "سعدة احمد عبد الهادي"], [13, "طفوف حكيم ضايف جثير"], [14, "عباس فاضل جاسم"], [15, "فاطمة حسن بهلول لفته"], [16, "فاطمة حيدر عبود"], [17, "فاطمة رعد عبد"], [18, "فاطمة فلاح عبد الحسن"], [19, "مرتضى علي عبد الحسن"], [20, "مصطفى صادق عبد الكاظم"], [21, "ملاك كمال صاحب"], [22, "نرجس ازهر رزاق مطر"], [23, "حيدر علي عمران"], [24, "أحلام جعفر عايز / استضافة"], [25, "تقى يحيى ضيغم / استضافة"], [26, "زينب عباس ياسر حسين"], [27, "حوراء نمير راضي"], [28, "عباس عصام حميد"]], "4": [[1, "اية رائد ناهي سعيد"], [2, "اديان صلاح ذياب محمد"], [3, "اسراء وليد محسن نزل"], [4, "اسماء جابر عنيد ساير"], [5, "ام البنين غفار موسى عجيل"], [6, "اماني حمود خليوي شلاش"], [7, "امنه مخيلف حميد صفر"], [8, "اية فاضل كاظم عبيد"], [9, "اية محمد هبوب رزاق"], [10, "بنت الزهراء كمال حمود سعدون"], [11, "حسين ثائر رزاق محمد"], [12, "حكيم جعفر نوري حسن"], [13, "حنين علي عبد الحسين صادق"], [14, "حوراء مهند شنان جبار"], [15, "حيدر احمد خالد غانم"], [16, "روان قاسم موشان عطية"], [17, "روان جبار صاحب عطيب"], [18, "زهراء خالد عبد العباس غانم"], [19, "زهراء رافد اعويني عبد الرضا"], [20, "زهراء عماد حاتم طاهر"], [21, "زهراء غالب عبادي عبود"], [22, "زهراء مرتضى قاسم موسى"], [23, "زينب رياض رسن عبد"], [24, "زينب عباس جهاد ضهاب"], [25, "زينب علي حنون حسن"], [26, "زينب علي لازم علك"], [27, "زينب فاضل جلاب هليل"], [28, "زينب محمد جواد ناصر"], [29, "زينة محمد كاظم منشد"], [30, "سيناء علي محمد يويرج"], [31, "سيف صفاء حسين"], [32, "سلسبيل يحيى عدنان"], [33, "شروق شهد موسى فشاخ"], [34, "ضحى مازن محمد حسن"], [35, "عذراء علي حسين عبد علي"], [36, "علي الحق باسم عليعل خلف"], [37, "علي انور ابراهيم حمد"], [38, "علي عبد الله حسن عبد"], [39, "عبد الله رياض ميحان عبد"], [40, "كوثر امين غني عباس"], [41, "كوثر شاكر مطير سمح"], [42, "محمد حافظ كامل خويط"], [43, "محمد مؤيد ناصر حسين"], [44, "مرتضى خالد رزاق محسن"], [45, "منتظر احمد عكار نزال"], [46, "مروة علي حسين علي"], [47, "مريم علي شاكر خليل"], [48, "مصطفى حيدر مساهر عطشان"], [49, "مصطفى احمد حنون محسن"], [50, "مصطفى علي رزاق خشان"], [51, "منار طارق علي ناصر"], [52, "مهدي كريم حيال عبد الرضا"], [53, "مكي علي مكي حبيب"], [54, "مقتدى محسن خزعل عليوي"], [55, "نبا حميد عوض منخي"], [56, "نور مؤيد حسن طاهر"], [57, "وديان فلاح عجيل جفات"], [58, "يقين عادل خركان طارش"], [59, "طيبة زهير عبد الرزاق ناصر"], [60, "تقوى حمد عبد الشهيد حمد"], [61, "تبارك علي حسين مطرود"], [62, "فاطمة علي غانم سلمان"], [63, "هبة حميد كاظم عريمش"], [64, "هناء ناطق اسماعيل عودة"], [65, "علي بدر عزيز"], [66, "عذراء فاضل جرداغ / استضافة"]], "5": [[1, "ابتهال عبد جولان علي"], [2, "احمد علي دحام صويحي"], [3, "اديان قاسم عبد خلوهن"], [4, "اكرم جون سلمان يوسف"], [5, "اماني كاظم جياد عزيز"], [6, "ايمان عادل خلف بشير"], [7, "باقر جهاد كاظم انبيت"], [8, "براءه حسن نعيم عثمان"], [9, "باقر سعد فرهود"], [10, "بنين اركان عبد الامير نعيمه"], [11, "بنين حسن علي بندر"], [12, "بنين علي كاظم علي"], [13, "بنين مصطفى كريم"], [14, "تبارك حسن كاظم نعمه"], [15, "حسين احمد عمار عوده"], [16, "حوراء سعد هاشم جابر"], [17, "حوراء عبد الحسين مروح كاظم"], [18, "حيدر محمد عبد الله علي"], [19, "رسول امجد طالب عطيه"], [20, "رضا رحيم منشد سموم"], [21, "رقية حسن جابر عبد"], [22, "رقية مالك يوسف سلطان"], [23, "روان نزار دبي ناصر"], [24, "زهراء حيدر عبد السادة محمد"], [25, "زهراء رائد شاكر عبد الرزاق"], [26, "زهراء سلام عبد الرزاق عبد النبي"], [27, "زهراء علي راضي دوحي"], [28, "زهراء علي راضي ساري"], [29, "زهراء فاخر عبد علي محيسن"], [30, "زهراء كريم ثامر عذب"], [31, "زهراء امجد رجاء"], [32, "زهراء محسن رهيف"], [33, "زينب احمد علي عطيه"], [34, "زينب حيدر محسن نعيم"], [35, "زينب صابر ماضي سلطان"], [36, "شهد جاسم ياسر حسين"], [37, "طيبة ايوب كاظم عودة"], [38, "طيبة خضير عباس"], [39, "عسل عباس كريم فنجان"], [40, "علي اياد صالح"], [41, "علي ماجد ثامر دويخ"], [42, "فاتن امين مهلهل شاهين"], [43, "فاطمة محمد جهاد"], [44, "فاطمة حامد ناصر ضيدان"], [45, "فاطمة شنان مزهر"], [46, "فاطمة فراس محمد"], [47, "مجتبى عدي تالي عيدان"], [48, "محمد حمزة جادر عبد الصاحب"], [49, "محمد امجد حمادي محيسن"], [50, "محمد حسن كاطع سرهيد"], [51, "مريم حسن شريف راضي"], [52, "مريم حسين جبار مزغول"], [53, "مصطفى احمد صاحب مهدي"], [54, "مصطفى وسام ناصر"], [55, "منار هيثم جبار عبد"], [56, "نبا احمد صباح كاظم"], [57, "نبا عباس علي كسار"], [58, "نصره حسن عطيوي عبد"], [59, "هالة عدنان هاشم ياسر"], [60, "هبة هادي جودة"], [61, "وهب علي هاشم"], [62, "كوثر عباس كطان"], [63, "ايمان علي بشير / استضافة"], [64, "اسراء نعيمة تاية / استضافة"], [65, "زين العابدين علي جاسم / معادلة"], [66, "محمد فراس شريف"], [67, "علي مهدي ناجي / معادلة"]]}};
+const _ORD_NAMES={1:'الأولى',2:'الثانية',3:'الثالثة',4:'الرابعة',5:'الخامسة',6:'السادسة'};
+function _impNorm(s){ return _normAr(String(s||'')).replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim(); }
+function _impStageFor(lvl){ return (state.stages||[]).find(function(s){ return stageLevel(s)===lvl; }) || null; }
+function _impPlan(){
+  return Object.keys(IMPORT_LISTS.stages).map(function(k){
+    const lvl=+k, list=IMPORT_LISTS.stages[k], st=_impStageFor(lvl);
+    const cur=st ? activeStudents().filter(function(s){return s.stageId===st.id;}) : [];
+    const have=new Set(cur.map(function(s){return _impNorm(s.name);}));
+    const inList=new Set(list.map(function(x){return _impNorm(x[1]);}));
+    const add=list.filter(function(x){ return !have.has(_impNorm(x[1])); });
+    const others=cur.filter(function(s){ return !inList.has(_impNorm(s.name)); }).length;
+    const groups=st ? (state.groups||[]).filter(function(g){return g.stageId===st.id;}) : [];
+    return {lvl:lvl, list:list, stage:st, add:add, dup:list.length-add.length, others:others, groups:groups};
+  });
+}
+function openImportStudents(){
+  if(currentApp!=='admin') return;
+  const plan=_impPlan(), done=(_meta().imports||{})[IMPORT_LISTS.key];
+  let h='<div class="info-box">📄 قوائم طلبة السنة الدراسية <b>'+IMPORT_LISTS.year+'</b> — '+plan.reduce(function(a,p){return a+p.list.length;},0)+' طالب. الأسماء مطابقة حرفياً لملفات PDF، وبنفس تسلسلها وأرقامها.</div>';
+  if(done) h+='<div class="warn-box" style="margin-top:8px">✓ تم الاستيراد سابقاً ('+new Date(done.at).toLocaleString('ar-IQ')+'). إعادة الاستيراد تتخطى الأسماء الموجودة ولا تكررها.</div>';
+  h+='<div class="imp-list">';
+  plan.forEach(function(p){
+    const nm=p.stage?p.stage.name:('المرحلة '+_ORD_NAMES[p.lvl]);
+    h+='<div class="imp-row"><div class="imp-h"><b>'+esc(nm)+'</b>'+(p.stage?'':'<span class="pv-res next">ستُنشأ</span>')+'<span class="ad-count">'+p.list.length+' طالب</span></div>'
+      +'<div class="imp-meta">'
+        +(p.add.length?'<span class="ad-n p">＋ '+p.add.length+' جديد</span>':'')
+        +(p.dup?'<span class="ad-n l">'+p.dup+' موجود مسبقاً (يُتخطّى)</span>':'')
+      +'</div>';
+    if(p.others) h+='<div class="imp-warn">⚠️ في هذه المرحلة حالياً '+p.others+' طالب غير موجود في القائمة — لن يُمسّوا. إذا كانوا من السنة الماضية فرحّلهم أولاً من «الأرشفة والترحيل».</div>';
+    if(p.add.length){
+      h+='<label class="imp-g">الكروب: <select class="form-select" id="imp-g-'+p.lvl+'">'
+        +(p.groups.length?p.groups.map(function(g){return '<option value="'+g.id+'">'+esc(g.name)+'</option>';}).join(''):'<option value="0">بدون كروب</option>')
+        +'</select></label>';
+    }
+    h+='<details class="imp-names"><summary>عرض الأسماء</summary><ol>'+p.list.map(function(x){ const isNew=p.add.indexOf(x)>=0; return '<li value="'+x[0]+'"'+(isNew?'':' class="dup"')+'>'+esc(x[1])+'</li>'; }).join('')+'</ol></details></div>';
+  });
+  h+='</div>';
+  const total=plan.reduce(function(a,p){return a+p.add.length;},0);
+  openModal('📥 استيراد طلبة '+IMPORT_LISTS.year, h, function(){ _doImport(); }, total?('📥 استيراد '+total+' طالب'):'إغلاق');
+  document.getElementById('modalOverlay').classList.add('wide');
+  if(!total) document.getElementById('modalConfirmBtn').onclick=closeModal;
+}
+function _doImport(){
+  const plan=_impPlan();
+  const total=plan.reduce(function(a,p){return a+p.add.length;},0);
+  if(!total){ closeModal(); toast('كل الأسماء موجودة مسبقاً','i'); return; }
+  const gsel={}; plan.forEach(function(p){ const el=document.getElementById('imp-g-'+p.lvl); gsel[p.lvl]=el?(parseInt(el.value)||0):0; });
+  if(!confirm('استيراد '+total+' طالب إلى '+plan.filter(function(p){return p.add.length;}).length+' مراحل؟')) return;
+  if(!state.stages) state.stages=[]; if(!state.students) state.students=[];
+  const res=[];
+  plan.forEach(function(p){
+    if(!p.add.length) return;
+    let st=p.stage;
+    if(!st){ st={id:nextId(), name:'المرحلة '+_ORD_NAMES[p.lvl], lvl:p.lvl}; state.stages.push(st); }
+    const gid=gsel[p.lvl]||0;
+    const inGroup=groupStudents(st.id,gid);
+    const keepNums=!inGroup.length;   // الكروب فارغ ← نحتفظ بأرقام القائمة كما هي
+    let num=nextNumFor(st.id,gid);
+    p.add.forEach(function(x){
+      const id=nextId();
+      state.students.push({id:id, stageId:st.id, groupId:gid, name:x[1], num:keepNums?x[0]:num++, barcode:'ST-'+String(id).padStart(5,'0')});
+    });
+    res.push(st.name+': '+p.add.length);
+  });
+  const m=_meta(); if(!_isObj(m.imports)) m.imports={};
+  m.imports[IMPORT_LISTS.key]={at:Date.now(), n:total};
+  save(); closeModal(); renderAdmin();
+  toast('✅ تم استيراد '+total+' طالب — '+res.join(' · '));
+}
+
 // ===== حماية الحذف: الأستاذ يضيف ويعدّل فقط — أي حذف يحتاج الرمز الذي يضعه المعاون =====
 const _GATE_MAX=5, _GATE_LOCK_MS=2*60*1000;
 function _gateState(){ try{ return JSON.parse(localStorage.getItem('_dgate')||'{}'); }catch(e){ return {}; } }
