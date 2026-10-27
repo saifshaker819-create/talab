@@ -4039,7 +4039,7 @@ function renderSettings(){
       +'<input class="search-input" id="st-search" placeholder="🔍 الاسم أو الرقم..." value="'+esc(_stFilter.q)+'" oninput="filterSettingsStudents()">'
     +'</div>'
     +'<div id="st-stage-actions" class="st-actions"></div>'
-    +'<button class="tool-btn wide" onclick="downloadFilteredBarcodes()">⬇️ تنزيل باركودات الطلاب الظاهرين</button>'
+    +'<button class="tool-btn wide" onclick="downloadFilteredBarcodes()">⬇️ تنزيل باركودات الطلاب الظاهرين (PDF)</button>'
     +'<div class="st-count" id="st-count"></div>'
     +'<div class="settings-list" id="students-settings-list">'+sortedSt.map(function(st,i){
       const hd=(i===0||sortedSt[i-1].stageId!==st.stageId)?'<div class="st-stage-h" data-stage="'+st.stageId+'"><b>🎓 '+esc(_stageName(st.stageId)||'بدون مرحلة')+'</b><span class="st-stage-n">'+(cntBy[st.stageId]||0)+' طالب</span></div>':'';
@@ -4695,11 +4695,119 @@ function deleteStudentSettings(id){
   });
 }
 
-// ========== تنزيل باركودات الطلاب المُصفَّين ==========
+// ========== تنزيل باركودات الطلاب المُصفَّين (ملف PDF بصفحات A4 جاهزة للطباعة) ==========
+var _bcPdfBusy = false;
+
+// توليد QR كـ canvas بدقة عالية (للطباعة)
+function _bcQrCanvas(text, size){
+  return new Promise(function(resolve){
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(tempDiv);
+    let done = false;
+    function finish(el){
+      if(done) return; done = true;
+      try{ document.body.removeChild(tempDiv); }catch(e){}
+      resolve(el);
+    }
+    try{
+      new QRCode(tempDiv, {
+        text: text, width: size, height: size,
+        colorDark: '#1a2035', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    }catch(e){ finish(null); return; }
+    const cv = tempDiv.querySelector('canvas');
+    if(cv){ finish(cv); return; }
+    const img = tempDiv.querySelector('img');
+    let tries = 0;
+    (function wait(){
+      if(img && img.src && img.complete && img.naturalWidth) return finish(img);
+      if(++tries > 40) return finish(null);
+      setTimeout(wait, 30);
+    })();
+  });
+}
+
+// canvas → بايتات JPEG
+function _bcCanvasToJpeg(canvas){
+  return new Promise(function(resolve, reject){
+    function fromDataUrl(){
+      try{
+        const b64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+        const bin = atob(b64), u8 = new Uint8Array(bin.length);
+        for(let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+        resolve(u8);
+      }catch(err){ reject(err); }
+    }
+    if(canvas.toBlob){
+      canvas.toBlob(function(blob){
+        if(!blob){ fromDataUrl(); return; }
+        if(blob.arrayBuffer){
+          blob.arrayBuffer().then(function(buf){ resolve(new Uint8Array(buf)); }, fromDataUrl);
+        } else {
+          const fr = new FileReader();
+          fr.onload = function(){ resolve(new Uint8Array(fr.result)); };
+          fr.onerror = fromDataUrl;
+          fr.readAsArrayBuffer(blob);
+        }
+      }, 'image/jpeg', 0.92);
+    } else fromDataUrl();
+  });
+}
+
+// بناء ملف PDF (صفحة A4 = صورة JPEG كاملة) بدون أي مكتبة خارجية
+function _bcBuildPdf(jpegPages, pxW, pxH){
+  const enc = new TextEncoder();
+  const PW = 595.28, PH = 841.89; // A4 بالنقطة
+  const chunks = [], offsets = [];
+  let offset = 0;
+  function push(d){
+    if(typeof d === 'string') d = enc.encode(d);
+    chunks.push(d); offset += d.length;
+  }
+  const n = jpegPages.length;
+  push('%PDF-1.4\n');
+  push(new Uint8Array([0x25,0xE2,0xE3,0xCF,0xD3,0x0A]));
+
+  offsets[1] = offset;
+  push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+
+  const kids = [];
+  for(let i=0;i<n;i++) kids.push((3+3*i)+' 0 R');
+  offsets[2] = offset;
+  push('2 0 obj\n<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+n+' >>\nendobj\n');
+
+  for(let i=0;i<n;i++){
+    const pid = 3+3*i, cid = 4+3*i, iid = 5+3*i;
+    offsets[pid] = offset;
+    push(pid+' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PW+' '+PH+'] /Resources << /XObject << /Im0 '+iid+' 0 R >> >> /Contents '+cid+' 0 R >>\nendobj\n');
+    const content = 'q '+PW+' 0 0 '+PH+' 0 0 cm /Im0 Do Q';
+    offsets[cid] = offset;
+    push(cid+' 0 obj\n<< /Length '+content.length+' >>\nstream\n'+content+'\nendstream\nendobj\n');
+    const jpg = jpegPages[i];
+    offsets[iid] = offset;
+    push(iid+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+pxW+' /Height '+pxH+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpg.length+' >>\nstream\n');
+    push(jpg);
+    push('\nendstream\nendobj\n');
+  }
+
+  const total = 3+3*n; // عدد الكائنات + كائن 0
+  const xrefPos = offset;
+  let xref = 'xref\n0 '+total+'\n0000000000 65535 f \n';
+  for(let id=1; id<total; id++){
+    xref += String(offsets[id]).padStart(10,'0')+' 00000 n \n';
+  }
+  push(xref);
+  push('trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xrefPos+'\n%%EOF');
+  return new Blob(chunks, {type:'application/pdf'});
+}
+
 async function downloadFilteredBarcodes(){
   if(typeof QRCode === 'undefined'){
     toast('⚠️ مكتبة QR Code لم تُحمَّل','e'); return;
   }
+  if(_bcPdfBusy){ toast('⏳ جاري إنشاء الملف، انتظر قليلاً...','i'); return; }
 
   // جمع الطلاب الظاهرين حالياً
   const visibleItems = Array.from(document.querySelectorAll('.student-si')).filter(function(el){
@@ -4724,146 +4832,145 @@ async function downloadFilteredBarcodes(){
 
   if(!students.length){ toast('لا يوجد طلاب','e'); return; }
 
-  // إنشاء label تعريفي للفلتر الحالي
+  // label تعريفي للفلتر الحالي
   const selStage = document.getElementById('st-filter-stage')?.value||'';
   const selGroup = document.getElementById('st-filter-group')?.value||'';
   const stageName = selStage ? ((state.stages||[]).find(function(s){return String(s.id)===selStage;})?.name||'') : 'كل المراحل';
   const groupName = selGroup ? ((state.groups||[]).find(function(g){return String(g.id)===selGroup;})?.name||'') : '';
 
-  toast('⏳ جاري إنشاء الباركودات... (' + students.length + ' طالب)','i');
+  _bcPdfBusy = true;
+  toast('⏳ جاري إنشاء ملف PDF... (' + students.length + ' طالب)','i');
 
-  // قياسات الكارت الواحد
-  const CARD_W = 300, CARD_H = 370;
-  const COLS = 3;
-  const ROWS = Math.ceil(students.length / COLS);
-  const PAD = 16;
-  const FULL_W = COLS * CARD_W + (COLS+1) * PAD;
-  const FULL_H = ROWS * CARD_H + (ROWS+1) * PAD;
+  try{
+    // ===== تصميم الكارت (نفس التصميم الحالي) بالنقطة المرجعية 300 × 300 =====
+    const CARD_W = 300, CARD_H = 300;
 
-  const finalCanvas = document.createElement('canvas');
-  finalCanvas.width  = FULL_W;
-  finalCanvas.height = FULL_H;
-  const ctx = finalCanvas.getContext('2d');
+    // ===== تقسيم صفحة A4 (بالمليمتر): 3 أعمدة × 4 صفوف = 12 باركود بالصفحة =====
+    const COLS = 3, ROWS = 4, PER_PAGE = COLS * ROWS;
+    const CARD_MM = 60, GAP_MM = 5;
+    const PAGE_W_MM = 210, PAGE_H_MM = 297;
+    const MARGIN_X_MM = (PAGE_W_MM - COLS*CARD_MM - (COLS-1)*GAP_MM) / 2;
+    const TOP_MM = 16;
 
-  // خلفية رمادية فاتحة
-  ctx.fillStyle = '#f1f5f9';
-  ctx.fillRect(0, 0, FULL_W, FULL_H);
+    // دقة الطباعة 200 DPI
+    const MM = 200 / 25.4;
+    const PX_W = Math.round(PAGE_W_MM * MM), PX_H = Math.round(PAGE_H_MM * MM);
+    const K = (CARD_MM * MM) / CARD_W;
 
-  // عنوان الصفحة
-  ctx.fillStyle = '#1a2035';
-  ctx.font = 'bold 20px Tahoma';
-  ctx.textAlign = 'center';
+    const totalPages = Math.ceil(students.length / PER_PAGE);
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = PX_W; pageCanvas.height = PX_H;
+    const ctx = pageCanvas.getContext('2d');
 
-  // دالة رسم كارت طالب واحد
-  function drawCard(st, col, row){
-    const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
-    const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
-    ensureBarcode(st);
+    // رسم كارت طالب واحد (إحداثيات محلية 0..300)
+    function drawCard(st, qrEl){
+      const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
+      const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
+      const stgTxt = (stage?.name||'') + (group?' — '+group.name:'');
 
-    const x = PAD + col*(CARD_W+PAD);
-    const y = PAD + row*(CARD_H+PAD);
+      // خلفية بيضاء
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      if(ctx.roundRect){ ctx.roundRect(0, 0, CARD_W, CARD_H, 12); } else { ctx.rect(0, 0, CARD_W, CARD_H); }
+      ctx.fill();
 
-    // خلفية بيضاء
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
-    ctx.fill();
+      // إطار (أوضح قليلاً ليسهل القص بعد الطباعة)
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if(ctx.roundRect){ ctx.roundRect(0, 0, CARD_W, CARD_H, 12); } else { ctx.rect(0, 0, CARD_W, CARD_H); }
+      ctx.stroke();
 
-    // إطار
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
-    ctx.stroke();
+      // شريط علوي
+      ctx.fillStyle = '#4f8ef7';
+      ctx.beginPath();
+      if(ctx.roundRect){ ctx.roundRect(0, 0, CARD_W, 36, [12,12,0,0]); } else { ctx.rect(0, 0, CARD_W, 36); }
+      ctx.fill();
 
-    // شريط علوي
-    ctx.fillStyle = '#4f8ef7';
-    ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, 36, [12,12,0,0]); } else { ctx.rect(x, y, CARD_W, 36); }
-    ctx.fill();
+      // اسم الطالب
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 13px Tahoma';
+      ctx.textAlign = 'center';
+      const nameText = st.name.length > 20 ? st.name.substring(0,19)+'…' : st.name;
+      ctx.fillText(nameText, CARD_W/2, 23);
 
-    // اسم الطالب
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 13px Tahoma';
-    ctx.textAlign = 'center';
-    const nameText = st.name.length > 20 ? st.name.substring(0,19)+'…' : st.name;
-    ctx.fillText(nameText, x + CARD_W/2, y + 23);
+      // المرحلة والكروب
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px Tahoma';
+      ctx.fillText(stgTxt, CARD_W/2, 50);
 
-    // المرحلة والكروب
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px Tahoma';
-    ctx.fillText((stage?.name||'') + (group?' — '+group.name:''), x + CARD_W/2, y + 50);
+      // QR
+      if(qrEl){
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        try{ ctx.drawImage(qrEl, 60, 60, 180, 180); }catch(e){}
+      }
 
-    return {x, y, stage, group};
-  }
+      // الكود
+      ctx.fillStyle = '#4f8ef7';
+      ctx.font = 'bold 14px Tahoma';
+      ctx.fillText(st.barcode, CARD_W/2, 262);
 
-  // رسم جميع الكروت وإنشاء QR codes
-  let pending = students.length;
-  if(pending === 0){ finalizeDownload(); return; }
-
-  students.forEach(function(st, idx){
-    const col = idx % COLS;
-    const row = Math.floor(idx / COLS);
-    const info = drawCard(st, col, row);
-    const x = info.x, y = info.y;
-
-    // إنشاء QR مؤقت
-    const tempDiv = document.createElement('div');
-    tempDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
-    document.body.appendChild(tempDiv);
-
-    try {
-      const qr = new QRCode(tempDiv, {
-        text: st.barcode,
-        width: 180, height: 180,
-        colorDark: '#1a2035', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
-
-      // الانتظار لحين توليد الصورة
-      setTimeout(function(){
-        const qrImg = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
-        if(qrImg){
-          if(qrImg.tagName === 'CANVAS'){
-            ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
-          } else {
-            // img قد لا تكون جاهزة
-            if(qrImg.complete){
-              ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
-            } else {
-              qrImg.onload = function(){ ctx.drawImage(qrImg, x + 60, y + 60, 180, 180); };
-            }
-          }
-        }
-        // الكود
-        ctx.fillStyle = '#4f8ef7';
-        ctx.font = 'bold 14px Tahoma';
-        ctx.textAlign = 'center';
-        ctx.fillText(st.barcode, x + CARD_W/2, y + 262);
-
-        // تفصيل
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '10px Tahoma';
-        ctx.fillText((info.stage?.name||'') + (info.group?' · '+info.group.name:''), x + CARD_W/2, y + 280);
-
-        document.body.removeChild(tempDiv);
-        pending--;
-        if(pending === 0) finalizeDownload();
-      }, 120);
-    } catch(e){
-      document.body.removeChild(tempDiv);
-      pending--;
-      if(pending === 0) finalizeDownload();
+      // تفصيل
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px Tahoma';
+      ctx.fillText((stage?.name||'') + (group?' · '+group.name:''), CARD_W/2, 280);
     }
-  });
 
-  function finalizeDownload(){
+    const jpegPages = [];
+    for(let p=0; p<totalPages; p++){
+      // صفحة بيضاء
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, PX_W, PX_H);
+
+      // ترويسة صغيرة وترقيم الصفحات
+      ctx.fillStyle = '#94a3b8';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 22px Tahoma';
+      ctx.fillText('باركودات الطلاب — ' + stageName + (groupName?' — '+groupName:''), PX_W/2, 10*MM);
+      ctx.font = '20px Tahoma';
+      ctx.fillText('صفحة ' + (p+1) + ' من ' + totalPages, PX_W/2, (PAGE_H_MM-8)*MM);
+
+      const slice = students.slice(p*PER_PAGE, (p+1)*PER_PAGE);
+      for(let i=0; i<slice.length; i++){
+        const st = slice[i];
+        ensureBarcode(st);
+        const col = i % COLS, row = Math.floor(i / COLS);
+        // ترتيب من اليمين لليسار (مناسب للعربية)
+        const xMM = MARGIN_X_MM + (COLS-1-col) * (CARD_MM + GAP_MM);
+        const yMM = TOP_MM + row * (CARD_MM + GAP_MM);
+
+        const qrEl = await _bcQrCanvas(st.barcode, 540);
+
+        ctx.save();
+        ctx.translate(xMM*MM, yMM*MM);
+        ctx.scale(K, K);
+        drawCard(st, qrEl);
+        ctx.restore();
+      }
+
+      jpegPages.push(await _bcCanvasToJpeg(pageCanvas));
+      // السماح للواجهة بالتنفس بين الصفحات
+      await new Promise(function(r){ setTimeout(r, 0); });
+    }
+
+    const blob = _bcBuildPdf(jpegPages, PX_W, PX_H);
+    const safe = function(t){ return String(t).replace(/[\\\/:*?"<>|]+/g,'-'); };
+    const fileName = 'barcodes-' + safe(stageName) + (groupName?'-'+safe(groupName):'') + '-' + students.length + 'student.pdf';
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    const fileName = 'barcodes-' + stageName + (groupName?'-'+groupName:'') + '-' + students.length + 'student.png';
     link.download = fileName;
-    link.href = finalCanvas.toDataURL('image/png');
+    link.href = url;
+    document.body.appendChild(link);
     link.click();
-    toast('✅ تم تنزيل ' + students.length + ' باركود بنجاح');
+    setTimeout(function(){ try{ document.body.removeChild(link); }catch(e){} URL.revokeObjectURL(url); }, 5000);
+    toast('✅ تم تنزيل ' + students.length + ' باركود في ' + totalPages + ' صفحة A4');
+  }catch(err){
+    console.error(err);
+    toast('❌ تعذّر إنشاء ملف PDF','e');
+  }finally{
+    _bcPdfBusy = false;
   }
 }
 
