@@ -16,7 +16,7 @@ window.addEventListener('error', function(e){
 }, true);
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#4f8ef7">
+<meta name="theme-color" content="#2563eb">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -56,8 +56,8 @@ window.addEventListener('error', function(e){
       scope: "./",
       display: "standalone",
       orientation: "any",
-      background_color: "#0f172a",
-      theme_color: "#4f8ef7",
+      background_color: "#f1f5fb",
+      theme_color: "#2563eb",
       lang: "ar",
       dir: "rtl",
       icons: [
@@ -1356,9 +1356,142 @@ details[open]>summary .pv-caret{transform:rotate(180deg)}
 .imp-names li.dup{color:var(--text3);text-decoration:line-through}
 @media(max-width:700px){ .imp-names ol{columns:1} }
 
+
+/* ==========================================================
+   v4 — نظام الألوان والثيمات الجديد
+   (تغيير ألوان وظلال فقط — لا تغيير في الأماكن أو التخطيط)
+   الافتراضي: الوضع النهاري
+   ========================================================== */
+
+/* ---------- الوضع الليلي: كحلي عميق بطبقات واضحة ---------- */
+:root{
+  --bg:#0b1220;--bg2:#121b2f;--bg3:#1a2540;
+  --glass:rgba(148,163,184,.06);--glass2:rgba(148,163,184,.10);--glass3:rgba(148,163,184,.17);
+  --border:rgba(148,163,184,.18);--border2:rgba(148,163,184,.32);
+  --accent:#60a5fa;--accent2:#2dd4bf;--accent3:#f472b6;--accent4:#fbbf24;
+  --admin-accent:#818cf8;--admin-accent2:#22d3ee;
+  --text:#f1f5f9;--text2:#b4c0d4;--text3:#8392ab;
+  --present:#34d399;--absent:#f87171;
+  --shadow:0 10px 32px rgba(0,0,0,.45);--shadow2:0 2px 10px rgba(0,0,0,.32);
+  --btn-blue:linear-gradient(135deg,#3b82f6,#2563eb);
+  --btn-green:linear-gradient(135deg,#059669,#047857);
+  --btn-red:linear-gradient(135deg,#dc2626,#b91c1c);
+  --btn-amber:linear-gradient(135deg,#d97706,#b45309);
+  --btn-indigo:linear-gradient(135deg,#4f46e5,#4338ca);
+}
+/* ---------- الوضع النهاري (الافتراضي): أسطح بيضاء نظيفة + خلفية رمادية زرقاء هادئة ---------- */
+body.light-mode{
+  --bg:#f1f5fb;--bg2:#ffffff;--bg3:#eaf0f8;
+  --glass:#f6f8fc;--glass2:#ffffff;--glass3:#e6edf7;
+  --border:#d9e2ef;--border2:#b9c7dc;
+  --accent:#2563eb;--accent2:#0d9488;--accent3:#db2777;--accent4:#b45309;
+  --admin-accent:#4f46e5;--admin-accent2:#0891b2;
+  --text:#0f172a;--text2:#3b4a63;--text3:#64748b;
+  --present:#047857;--absent:#dc2626;
+  --shadow:0 12px 32px rgba(15,23,42,.10);--shadow2:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.05);
+  --btn-blue:linear-gradient(135deg,#2563eb,#1d4ed8);
+}
+body{color-scheme:dark}
+body.light-mode{color-scheme:light}
+
+/* ---------- الخلفية ---------- */
+body::before{background:radial-gradient(ellipse 80% 55% at 15% 0%,rgba(96,165,250,.11) 0%,transparent 60%),radial-gradient(ellipse 60% 45% at 90% 100%,rgba(45,212,191,.07) 0%,transparent 60%)}
+body.light-mode::before{background:radial-gradient(ellipse 80% 55% at 15% 0%,rgba(37,99,235,.08) 0%,transparent 60%),radial-gradient(ellipse 60% 45% at 90% 100%,rgba(13,148,136,.07) 0%,transparent 60%)}
+#loginScreen::before{background:radial-gradient(ellipse 80% 60% at 20% 10%,rgba(96,165,250,.18) 0%,transparent 60%),radial-gradient(ellipse 60% 50% at 80% 90%,rgba(45,212,191,.10) 0%,transparent 60%)}
+body.light-mode #loginScreen::before{background:radial-gradient(ellipse 80% 60% at 20% 10%,rgba(37,99,235,.13) 0%,transparent 60%),radial-gradient(ellipse 60% 50% at 80% 90%,rgba(13,148,136,.10) 0%,transparent 60%)}
+body.light-mode .login-box{box-shadow:0 24px 60px rgba(15,23,42,.14);border-color:var(--border)}
+
+/* ---------- الأشرطة العلوية ---------- */
+.ad-top{background:rgba(11,18,32,.90)}
+.pv-head{background:rgba(18,27,47,.94)}
+#adminApp .admin-header{background:rgba(11,18,32,.90)}
+body.light-mode #astathApp .app-header{background:rgba(255,255,255,.94);box-shadow:0 1px 0 var(--border),0 6px 18px rgba(15,23,42,.05)}
+body.light-mode .ad-top{background:rgba(255,255,255,.94);box-shadow:0 1px 0 var(--border),0 6px 18px rgba(15,23,42,.05)}
+body.light-mode .pv-head{background:rgba(255,255,255,.95);box-shadow:0 1px 0 var(--border)}
+body.light-mode #adminApp .admin-header{background:rgba(255,255,255,.94);border-bottom-color:var(--border)}
+body.light-mode .nav-tabs{background:#fff}
+@media(max-width:700px){
+  .ad-top,body.light-mode .ad-top{background:var(--bg2)}
+  body.light-mode .nav-tabs{box-shadow:0 -4px 18px rgba(15,23,42,.08)}
+  body.light-mode .ad-tabs{box-shadow:0 -4px 18px rgba(15,23,42,.08)}
+}
+
+/* ---------- ظلال البطاقات في الوضع النهاري (خفيفة تعطي عمقاً) ---------- */
+:where(body.light-mode) .card,
+:where(body.light-mode) .stat-card,
+:where(body.light-mode) .stat-box,
+:where(body.light-mode) .ad-card,
+:where(body.light-mode) .ad-kpi,
+:where(body.light-mode) .report-card,
+:where(body.light-mode) .att-hero,
+:where(body.light-mode) .att-info,
+:where(body.light-mode) .acc-section,
+:where(body.light-mode) .filters-panel,
+:where(body.light-mode) .admin-table-section,
+:where(body.light-mode) .student-summary,
+:where(body.light-mode) .pv-step,
+:where(body.light-mode) .pv-sec,
+:where(body.light-mode) .pv-card,
+:where(body.light-mode) .ad-filterbar,
+:where(body.light-mode) .table-wrap{box-shadow:var(--shadow2)}
+:where(body.light-mode) .st-row,
+:where(body.light-mode) .settings-item,
+:where(body.light-mode) .ad-item,
+:where(body.light-mode) .history-item,
+:where(body.light-mode) .asb-item{box-shadow:0 1px 2px rgba(15,23,42,.05)}
+body.light-mode .modal,body.light-mode .crm-box,body.light-mode .bio-modal{box-shadow:0 24px 60px rgba(15,23,42,.22)}
+body.light-mode .modal-overlay,body.light-mode .crm-overlay,body.light-mode .del-modal,body.light-mode .bio-modal-overlay{background:rgba(15,23,42,.50)}
+body.light-mode .astath-settings-backdrop,body.light-mode .admin-settings-backdrop{background:rgba(15,23,42,.40)}
+
+/* ---------- حقول الإدخال (وضوح أعلى في النهاري) ---------- */
+body.light-mode .form-input,body.light-mode .form-select,body.light-mode .search-input,
+body.light-mode .note-input,body.light-mode .num-input{background:#f8fafd;border-color:var(--border2)}
+body.light-mode .form-input:focus,body.light-mode .form-select:focus,body.light-mode .search-input:focus,
+body.light-mode .num-input:focus{background:#fff}
+body.light-mode .seg{background:var(--glass3)}
+body.light-mode .seg>button.active{background:#fff;color:var(--accent)}
+
+/* ---------- الأزرار: تدرجات واضحة ونص أبيض مقروء ---------- */
+.login-btn,.btn-add,.btn-confirm,.pwa-install-btn,.barcode-print-btn{background:var(--btn-blue);color:#fff;box-shadow:0 6px 16px rgba(37,99,235,.28)}
+.btn-filter,.pv-go.wide{background:var(--btn-indigo);color:#fff}
+.btn-save-all,.btn-export,.btn-excel,.btn-scan-camera,.num-go.p,.ad-icon-btn.primary,.ad-btn.green,.pv-go{background:var(--btn-green);color:#fff}
+.btn-pdf,.num-go.a,.crm-confirm-btn,.del-confirm{background:var(--btn-red);color:#fff}
+.crm-confirm-btn.yellow,.ad-btn.amber{background:var(--btn-amber);color:#fff}
+.pv-go.grad{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+.pv-go.wide{background:var(--btn-indigo)}
+
+/* عناصر صلبة بنص أبيض */
+.att-btn.present-btn.active,.att-btn.present-btn:hover{background:#059669;border-color:#059669;color:#fff}
+.att-btn.absent-btn.active,.att-btn.absent-btn:hover{background:#dc2626;border-color:#dc2626;color:#fff}
+.method-seg button.active::after{background:#2563eb}
+.pv-step.done .pv-num,.pv-stage.next .pv-lv,.pv-res.next{background:#059669;color:#fff}
+.ad-tab-badge{background:#dc2626}
+.ad-chip.active,.ad-fc,.pv-step.cur .pv-num{background:#4f46e5;border-color:#4f46e5;color:#fff}
+
+/* ---------- تباين النصوص الملوّنة ---------- */
+body.light-mode .leave-tag,body.light-mode .badge-leave,body.light-mode .ad-n.l,
+body.light-mode .ad-table .c-l,body.light-mode .ad-det-k .l b,body.light-mode .asb-item.l b,
+body.light-mode .num-tile.is-leave b,body.light-mode .st-menu .sm-l,
+body.light-mode .bc-chip.is-leave b,body.light-mode .ad-sel.leave{color:#1d4ed8}
+body:not(.light-mode) .leave-tag,body:not(.light-mode) .badge-leave,body:not(.light-mode) .ad-n.l,
+body:not(.light-mode) .ad-table .c-l,body:not(.light-mode) .ad-det-k .l b,body:not(.light-mode) .asb-item.l b,
+body:not(.light-mode) .num-tile.is-leave b,body:not(.light-mode) .st-menu .sm-l,
+body:not(.light-mode) .bc-chip.is-leave b,body:not(.light-mode) .ad-sel.leave{color:#7db4ff}
+body.light-mode .wb-1{color:#92400e}
+body.light-mode .wb-2{color:#9a3412}
+body.light-mode .wb-3{color:#b91c1c}
+body.light-mode .tool-btn.warn,body.light-mode .pending-badge{color:#b45309}
+body:not(.light-mode) .tool-btn.warn,body:not(.light-mode) .pending-badge{color:#fbbf24}
+body.light-mode .tool-btn.grad,body.light-mode .pv-res.grad{color:#6d28d9}
+body.light-mode .badge-stage,body.light-mode .ad-btn.on{color:#4338ca}
+body.light-mode .si-edit,body.light-mode .ca-edit{color:#92400e}
+body.light-mode .tool-btn.wide{background:rgba(37,99,235,.07)}
+body.light-mode .info-box{background:rgba(37,99,235,.06);border-color:rgba(37,99,235,.22)}
+body.light-mode .warn-box{background:rgba(217,119,6,.08);border-color:rgba(217,119,6,.30)}
+
 </style>
 </head>
-<body>
+<body class="light-mode">
 
 <!-- ===========================
      UNIFIED LOGIN SCREEN
@@ -1817,7 +1950,7 @@ const ADMIN_UID   = 'wzjftZWiwUXDVzgTypVfqLegs7Q2';  // student0191 — لوحة
 
 // ===== بيانات دخول محلية (للعمل بدون إنترنت) =====
 const LOCAL_CREDS = {
-  astath: { user: 'doctor', pass: 'doctor@11223' },
+  astath: { user: 'doctor', pass: 'doc@1230' },
   admin:  { user: '',       pass: 'student0191' }
 };
 
@@ -2410,14 +2543,20 @@ function toggleTheme(){
   _updateThemeDrawerBtn();
   _updateAstathThemeBtn();
   localStorage.setItem('theme',isLight?'light':'dark');
+  try{ localStorage.setItem('theme_v2',isLight?'light':'dark'); }catch(e){}
 }
 (function(){
-  if(localStorage.getItem('theme')==='light'){
-    document.body.classList.add('light-mode');
-    ['themeBtn','themeToggleAstath'].forEach(function(id){
-      const el=document.getElementById(id); if(el) el.textContent='🌙';
-    });
-  }
+  // الافتراضي: الوضع النهاري. اختيار المستخدم يُحفظ في theme_v2
+  var saved=null; try{ saved=localStorage.getItem('theme_v2'); }catch(e){}
+  var isLight = saved!=='dark';
+  document.body.classList.toggle('light-mode', isLight);
+  ['themeBtn','themeToggleAstath'].forEach(function(id){
+    const el=document.getElementById(id); if(el) el.textContent=isLight?'🌙':'☀️';
+  });
+  try{
+    if(typeof _updateThemeDrawerBtn==='function') _updateThemeDrawerBtn();
+    if(typeof _updateAstathThemeBtn==='function') _updateAstathThemeBtn();
+  }catch(e){}
 })();
 </script>
 
@@ -4039,7 +4178,7 @@ function renderSettings(){
       +'<input class="search-input" id="st-search" placeholder="🔍 الاسم أو الرقم..." value="'+esc(_stFilter.q)+'" oninput="filterSettingsStudents()">'
     +'</div>'
     +'<div id="st-stage-actions" class="st-actions"></div>'
-    +'<button class="tool-btn wide" onclick="downloadFilteredBarcodes()">⬇️ تنزيل باركودات الطلاب الظاهرين (PDF)</button>'
+    +'<button class="tool-btn wide" onclick="downloadFilteredBarcodes()">⬇️ تنزيل باركودات الطلاب الظاهرين</button>'
     +'<div class="st-count" id="st-count"></div>'
     +'<div class="settings-list" id="students-settings-list">'+sortedSt.map(function(st,i){
       const hd=(i===0||sortedSt[i-1].stageId!==st.stageId)?'<div class="st-stage-h" data-stage="'+st.stageId+'"><b>🎓 '+esc(_stageName(st.stageId)||'بدون مرحلة')+'</b><span class="st-stage-n">'+(cntBy[st.stageId]||0)+' طالب</span></div>':'';
@@ -4695,119 +4834,11 @@ function deleteStudentSettings(id){
   });
 }
 
-// ========== تنزيل باركودات الطلاب المُصفَّين (ملف PDF بصفحات A4 جاهزة للطباعة) ==========
-var _bcPdfBusy = false;
-
-// توليد QR كـ canvas بدقة عالية (للطباعة)
-function _bcQrCanvas(text, size){
-  return new Promise(function(resolve){
-    const tempDiv = document.createElement('div');
-    tempDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
-    document.body.appendChild(tempDiv);
-    let done = false;
-    function finish(el){
-      if(done) return; done = true;
-      try{ document.body.removeChild(tempDiv); }catch(e){}
-      resolve(el);
-    }
-    try{
-      new QRCode(tempDiv, {
-        text: text, width: size, height: size,
-        colorDark: '#1a2035', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
-    }catch(e){ finish(null); return; }
-    const cv = tempDiv.querySelector('canvas');
-    if(cv){ finish(cv); return; }
-    const img = tempDiv.querySelector('img');
-    let tries = 0;
-    (function wait(){
-      if(img && img.src && img.complete && img.naturalWidth) return finish(img);
-      if(++tries > 40) return finish(null);
-      setTimeout(wait, 30);
-    })();
-  });
-}
-
-// canvas → بايتات JPEG
-function _bcCanvasToJpeg(canvas){
-  return new Promise(function(resolve, reject){
-    function fromDataUrl(){
-      try{
-        const b64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
-        const bin = atob(b64), u8 = new Uint8Array(bin.length);
-        for(let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
-        resolve(u8);
-      }catch(err){ reject(err); }
-    }
-    if(canvas.toBlob){
-      canvas.toBlob(function(blob){
-        if(!blob){ fromDataUrl(); return; }
-        if(blob.arrayBuffer){
-          blob.arrayBuffer().then(function(buf){ resolve(new Uint8Array(buf)); }, fromDataUrl);
-        } else {
-          const fr = new FileReader();
-          fr.onload = function(){ resolve(new Uint8Array(fr.result)); };
-          fr.onerror = fromDataUrl;
-          fr.readAsArrayBuffer(blob);
-        }
-      }, 'image/jpeg', 0.92);
-    } else fromDataUrl();
-  });
-}
-
-// بناء ملف PDF (صفحة A4 = صورة JPEG كاملة) بدون أي مكتبة خارجية
-function _bcBuildPdf(jpegPages, pxW, pxH){
-  const enc = new TextEncoder();
-  const PW = 595.28, PH = 841.89; // A4 بالنقطة
-  const chunks = [], offsets = [];
-  let offset = 0;
-  function push(d){
-    if(typeof d === 'string') d = enc.encode(d);
-    chunks.push(d); offset += d.length;
-  }
-  const n = jpegPages.length;
-  push('%PDF-1.4\n');
-  push(new Uint8Array([0x25,0xE2,0xE3,0xCF,0xD3,0x0A]));
-
-  offsets[1] = offset;
-  push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
-
-  const kids = [];
-  for(let i=0;i<n;i++) kids.push((3+3*i)+' 0 R');
-  offsets[2] = offset;
-  push('2 0 obj\n<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+n+' >>\nendobj\n');
-
-  for(let i=0;i<n;i++){
-    const pid = 3+3*i, cid = 4+3*i, iid = 5+3*i;
-    offsets[pid] = offset;
-    push(pid+' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PW+' '+PH+'] /Resources << /XObject << /Im0 '+iid+' 0 R >> >> /Contents '+cid+' 0 R >>\nendobj\n');
-    const content = 'q '+PW+' 0 0 '+PH+' 0 0 cm /Im0 Do Q';
-    offsets[cid] = offset;
-    push(cid+' 0 obj\n<< /Length '+content.length+' >>\nstream\n'+content+'\nendstream\nendobj\n');
-    const jpg = jpegPages[i];
-    offsets[iid] = offset;
-    push(iid+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+pxW+' /Height '+pxH+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpg.length+' >>\nstream\n');
-    push(jpg);
-    push('\nendstream\nendobj\n');
-  }
-
-  const total = 3+3*n; // عدد الكائنات + كائن 0
-  const xrefPos = offset;
-  let xref = 'xref\n0 '+total+'\n0000000000 65535 f \n';
-  for(let id=1; id<total; id++){
-    xref += String(offsets[id]).padStart(10,'0')+' 00000 n \n';
-  }
-  push(xref);
-  push('trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xrefPos+'\n%%EOF');
-  return new Blob(chunks, {type:'application/pdf'});
-}
-
+// ========== تنزيل باركودات الطلاب المُصفَّين ==========
 async function downloadFilteredBarcodes(){
   if(typeof QRCode === 'undefined'){
     toast('⚠️ مكتبة QR Code لم تُحمَّل','e'); return;
   }
-  if(_bcPdfBusy){ toast('⏳ جاري إنشاء الملف، انتظر قليلاً...','i'); return; }
 
   // جمع الطلاب الظاهرين حالياً
   const visibleItems = Array.from(document.querySelectorAll('.student-si')).filter(function(el){
@@ -4832,145 +4863,146 @@ async function downloadFilteredBarcodes(){
 
   if(!students.length){ toast('لا يوجد طلاب','e'); return; }
 
-  // label تعريفي للفلتر الحالي
+  // إنشاء label تعريفي للفلتر الحالي
   const selStage = document.getElementById('st-filter-stage')?.value||'';
   const selGroup = document.getElementById('st-filter-group')?.value||'';
   const stageName = selStage ? ((state.stages||[]).find(function(s){return String(s.id)===selStage;})?.name||'') : 'كل المراحل';
   const groupName = selGroup ? ((state.groups||[]).find(function(g){return String(g.id)===selGroup;})?.name||'') : '';
 
-  _bcPdfBusy = true;
-  toast('⏳ جاري إنشاء ملف PDF... (' + students.length + ' طالب)','i');
+  toast('⏳ جاري إنشاء الباركودات... (' + students.length + ' طالب)','i');
 
-  try{
-    // ===== تصميم الكارت (نفس التصميم الحالي) بالنقطة المرجعية 300 × 300 =====
-    const CARD_W = 300, CARD_H = 300;
+  // قياسات الكارت الواحد
+  const CARD_W = 300, CARD_H = 370;
+  const COLS = 3;
+  const ROWS = Math.ceil(students.length / COLS);
+  const PAD = 16;
+  const FULL_W = COLS * CARD_W + (COLS+1) * PAD;
+  const FULL_H = ROWS * CARD_H + (ROWS+1) * PAD;
 
-    // ===== تقسيم صفحة A4 (بالمليمتر): 3 أعمدة × 4 صفوف = 12 باركود بالصفحة =====
-    const COLS = 3, ROWS = 4, PER_PAGE = COLS * ROWS;
-    const CARD_MM = 60, GAP_MM = 5;
-    const PAGE_W_MM = 210, PAGE_H_MM = 297;
-    const MARGIN_X_MM = (PAGE_W_MM - COLS*CARD_MM - (COLS-1)*GAP_MM) / 2;
-    const TOP_MM = 16;
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width  = FULL_W;
+  finalCanvas.height = FULL_H;
+  const ctx = finalCanvas.getContext('2d');
 
-    // دقة الطباعة 200 DPI
-    const MM = 200 / 25.4;
-    const PX_W = Math.round(PAGE_W_MM * MM), PX_H = Math.round(PAGE_H_MM * MM);
-    const K = (CARD_MM * MM) / CARD_W;
+  // خلفية رمادية فاتحة
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillRect(0, 0, FULL_W, FULL_H);
 
-    const totalPages = Math.ceil(students.length / PER_PAGE);
-    const pageCanvas = document.createElement('canvas');
-    pageCanvas.width = PX_W; pageCanvas.height = PX_H;
-    const ctx = pageCanvas.getContext('2d');
+  // عنوان الصفحة
+  ctx.fillStyle = '#1a2035';
+  ctx.font = 'bold 20px Tahoma';
+  ctx.textAlign = 'center';
 
-    // رسم كارت طالب واحد (إحداثيات محلية 0..300)
-    function drawCard(st, qrEl){
-      const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
-      const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
-      const stgTxt = (stage?.name||'') + (group?' — '+group.name:'');
+  // دالة رسم كارت طالب واحد
+  function drawCard(st, col, row){
+    const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
+    const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
+    ensureBarcode(st);
 
-      // خلفية بيضاء
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      if(ctx.roundRect){ ctx.roundRect(0, 0, CARD_W, CARD_H, 12); } else { ctx.rect(0, 0, CARD_W, CARD_H); }
-      ctx.fill();
+    const x = PAD + col*(CARD_W+PAD);
+    const y = PAD + row*(CARD_H+PAD);
 
-      // إطار (أوضح قليلاً ليسهل القص بعد الطباعة)
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if(ctx.roundRect){ ctx.roundRect(0, 0, CARD_W, CARD_H, 12); } else { ctx.rect(0, 0, CARD_W, CARD_H); }
-      ctx.stroke();
+    // خلفية بيضاء
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
+    ctx.fill();
 
-      // شريط علوي
-      ctx.fillStyle = '#4f8ef7';
-      ctx.beginPath();
-      if(ctx.roundRect){ ctx.roundRect(0, 0, CARD_W, 36, [12,12,0,0]); } else { ctx.rect(0, 0, CARD_W, 36); }
-      ctx.fill();
+    // إطار
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
+    ctx.stroke();
 
-      // اسم الطالب
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px Tahoma';
-      ctx.textAlign = 'center';
-      const nameText = st.name.length > 20 ? st.name.substring(0,19)+'…' : st.name;
-      ctx.fillText(nameText, CARD_W/2, 23);
+    // شريط علوي
+    ctx.fillStyle = '#4f8ef7';
+    ctx.beginPath();
+    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, 36, [12,12,0,0]); } else { ctx.rect(x, y, CARD_W, 36); }
+    ctx.fill();
 
-      // المرحلة والكروب
-      ctx.fillStyle = '#64748b';
-      ctx.font = '11px Tahoma';
-      ctx.fillText(stgTxt, CARD_W/2, 50);
+    // اسم الطالب
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 13px Tahoma';
+    ctx.textAlign = 'center';
+    const nameText = st.name.length > 20 ? st.name.substring(0,19)+'…' : st.name;
+    ctx.fillText(nameText, x + CARD_W/2, y + 23);
 
-      // QR
-      if(qrEl){
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        try{ ctx.drawImage(qrEl, 60, 60, 180, 180); }catch(e){}
-      }
+    // المرحلة والكروب
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px Tahoma';
+    ctx.fillText((stage?.name||'') + (group?' — '+group.name:''), x + CARD_W/2, y + 50);
 
-      // الكود
-      ctx.fillStyle = '#4f8ef7';
-      ctx.font = 'bold 14px Tahoma';
-      ctx.fillText(st.barcode, CARD_W/2, 262);
+    return {x, y, stage, group};
+  }
 
-      // تفصيل
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px Tahoma';
-      ctx.fillText((stage?.name||'') + (group?' · '+group.name:''), CARD_W/2, 280);
+  // رسم جميع الكروت وإنشاء QR codes
+  let pending = students.length;
+  if(pending === 0){ finalizeDownload(); return; }
+
+  students.forEach(function(st, idx){
+    const col = idx % COLS;
+    const row = Math.floor(idx / COLS);
+    const info = drawCard(st, col, row);
+    const x = info.x, y = info.y;
+
+    // إنشاء QR مؤقت
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(tempDiv);
+
+    try {
+      const qr = new QRCode(tempDiv, {
+        text: st.barcode,
+        width: 180, height: 180,
+        colorDark: '#1a2035', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      // الانتظار لحين توليد الصورة
+      setTimeout(function(){
+        const qrImg = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
+        if(qrImg){
+          if(qrImg.tagName === 'CANVAS'){
+            ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
+          } else {
+            // img قد لا تكون جاهزة
+            if(qrImg.complete){
+              ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
+            } else {
+              qrImg.onload = function(){ ctx.drawImage(qrImg, x + 60, y + 60, 180, 180); };
+            }
+          }
+        }
+        // الكود
+        ctx.fillStyle = '#4f8ef7';
+        ctx.font = 'bold 14px Tahoma';
+        ctx.textAlign = 'center';
+        ctx.fillText(st.barcode, x + CARD_W/2, y + 262);
+
+        // تفصيل
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px Tahoma';
+        ctx.fillText((info.stage?.name||'') + (info.group?' · '+info.group.name:''), x + CARD_W/2, y + 280);
+
+        document.body.removeChild(tempDiv);
+        pending--;
+        if(pending === 0) finalizeDownload();
+      }, 120);
+    } catch(e){
+      document.body.removeChild(tempDiv);
+      pending--;
+      if(pending === 0) finalizeDownload();
     }
+  });
 
-    const jpegPages = [];
-    for(let p=0; p<totalPages; p++){
-      // صفحة بيضاء
-      ctx.setTransform(1,0,0,1,0,0);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, PX_W, PX_H);
-
-      // ترويسة صغيرة وترقيم الصفحات
-      ctx.fillStyle = '#94a3b8';
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 22px Tahoma';
-      ctx.fillText('باركودات الطلاب — ' + stageName + (groupName?' — '+groupName:''), PX_W/2, 10*MM);
-      ctx.font = '20px Tahoma';
-      ctx.fillText('صفحة ' + (p+1) + ' من ' + totalPages, PX_W/2, (PAGE_H_MM-8)*MM);
-
-      const slice = students.slice(p*PER_PAGE, (p+1)*PER_PAGE);
-      for(let i=0; i<slice.length; i++){
-        const st = slice[i];
-        ensureBarcode(st);
-        const col = i % COLS, row = Math.floor(i / COLS);
-        // ترتيب من اليمين لليسار (مناسب للعربية)
-        const xMM = MARGIN_X_MM + (COLS-1-col) * (CARD_MM + GAP_MM);
-        const yMM = TOP_MM + row * (CARD_MM + GAP_MM);
-
-        const qrEl = await _bcQrCanvas(st.barcode, 540);
-
-        ctx.save();
-        ctx.translate(xMM*MM, yMM*MM);
-        ctx.scale(K, K);
-        drawCard(st, qrEl);
-        ctx.restore();
-      }
-
-      jpegPages.push(await _bcCanvasToJpeg(pageCanvas));
-      // السماح للواجهة بالتنفس بين الصفحات
-      await new Promise(function(r){ setTimeout(r, 0); });
-    }
-
-    const blob = _bcBuildPdf(jpegPages, PX_W, PX_H);
-    const safe = function(t){ return String(t).replace(/[\\\/:*?"<>|]+/g,'-'); };
-    const fileName = 'barcodes-' + safe(stageName) + (groupName?'-'+safe(groupName):'') + '-' + students.length + 'student.pdf';
-    const url = URL.createObjectURL(blob);
+  function finalizeDownload(){
     const link = document.createElement('a');
+    const fileName = 'barcodes-' + stageName + (groupName?'-'+groupName:'') + '-' + students.length + 'student.png';
     link.download = fileName;
-    link.href = url;
-    document.body.appendChild(link);
+    link.href = finalCanvas.toDataURL('image/png');
     link.click();
-    setTimeout(function(){ try{ document.body.removeChild(link); }catch(e){} URL.revokeObjectURL(url); }, 5000);
-    toast('✅ تم تنزيل ' + students.length + ' باركود في ' + totalPages + ' صفحة A4');
-  }catch(err){
-    console.error(err);
-    toast('❌ تعذّر إنشاء ملف PDF','e');
-  }finally{
-    _bcPdfBusy = false;
+    toast('✅ تم تنزيل ' + students.length + ' باركود بنجاح');
   }
 }
 
