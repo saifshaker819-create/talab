@@ -4055,11 +4055,27 @@ function switchAttTab(tab){
 
 // ===== السجل المنسدل: تاريخ واحد مفتوح فقط — الضغط خارجه أو على تاريخ آخر يغلقه =====
 let _histOpenSk=null;
+const _histLazy={};   // جلسات السجل العام: تُرسم أسماؤها عند الفتح فقط (أخف على الهاتف)
+function _fillHistRows(item){
+  const box=item&&item.querySelector('.hi-rows[data-lazy]'); if(!box) return;
+  const records=_histLazy[item.getAttribute('data-sk')]; if(!records) return;
+  const stMap=new Map((state.students||[]).map(function(s){return [s.id,s];}));
+  box.innerHTML=records.slice().sort(function(x,y){
+    const X=stMap.get(x.studentId)||{}, Y=stMap.get(y.studentId)||{};
+    return (parseInt(X.num)||1e9)-(parseInt(Y.num)||1e9);
+  }).map(function(r){
+    const st=stMap.get(r.studentId);
+    const cls=r.status==='absent'?'absent':r.status==='leave'?'leave':'present';
+    const ic=cls==='absent'?'❌':cls==='leave'?'🏖️':'✅';
+    return '<div class="hi-row is-'+cls+'"><span>'+ic+' '+(st&&st.num?'<b class="hi-num">'+esc(st.num)+'</b> ':'')+esc(st?st.name:'؟')+(r.note?' ('+esc(r.note)+')':'')+'</span></div>';
+  }).join('');
+  box.removeAttribute('data-lazy');
+}
 function toggleHistItem(el){
   if(!el) return;
   const wasOpen=el.classList.contains('open');
   document.querySelectorAll('.hi-acc.open').forEach(function(x){ x.classList.remove('open'); });
-  if(wasOpen){ _histOpenSk=null; } else { el.classList.add('open'); _histOpenSk=el.getAttribute('data-sk'); }
+  if(wasOpen){ _histOpenSk=null; } else { el.classList.add('open'); _histOpenSk=el.getAttribute('data-sk'); _fillHistRows(el); }
 }
 document.addEventListener('click',function(e){
   if(!document.querySelector('.hi-acc.open')) return;
@@ -4262,6 +4278,7 @@ function renderHistory(){
   atts.forEach(a=>{ let x=by.get(a.sk); if(!x){ x=[]; by.set(a.sk,x); } x.push(a); });
   const sessions=[...by.values()].sort((a,b)=>(b[0].savedAt||0)-(a[0].savedAt||0));
   const nm=r=>{ const st=stMap.get(r.studentId); return esc(st?st.name:'؟')+(r.note?'('+esc(r.note)+')':''); };
+  for(const k in _histLazy) delete _histLazy[k];
   let html=`<div class="history-list" style="max-height:none">`;
   sessions.slice(0,100).forEach(records=>{
     const r0=records[0];
@@ -4270,17 +4287,14 @@ function renderHistory(){
     const p=records.filter(r=>r.status==='present').length;
     const a=records.filter(r=>r.status==='absent').length;
     const l=records.filter(r=>r.status==='leave').length;
-    html+=`<div class="history-item"><div class="hi-top"><div><div class="hi-name">📖 ${esc(sub?.name||'؟')} <span style="font-size:11px;opacity:.7">(${typeBadge})</span> · ${esc(_stageName(r0.stageId)||'؟')} · ${esc(_groupName(r0.groupId))}</div><div class="hi-date">📅 ${esc(r0.date||'')} — 🕐 ${esc(r0.time||'')}</div></div><div style="display:flex;gap:8px;align-items:center"><span class="status-badge badge-present">✅ ${p}</span><span class="status-badge badge-absent">❌ ${a}</span>${l?`<span class="status-badge badge-leave">🏖️ ${l}</span>`:''}</div></div>`;
-    if(selStudent){
-      html+=`<div class="hi-detail" style="margin-top:6px">${records.map(r=>`<span style="margin-left:8px">${r.status==='absent'?'❌':r.status==='leave'?'🏖️':'✅'} ${nm(r)}</span>`).join('')}</div>`;
-    } else {
-      if(a) html+=`<div class="hi-detail" style="margin-top:6px">الغائبون: ${records.filter(r=>r.status==='absent').map(r=>`<span style="margin-left:8px">👤${nm(r)}</span>`).join('')}</div>`;
-      if(l) html+=`<div class="hi-detail" style="margin-top:4px">المجازون: ${records.filter(r=>r.status==='leave').map(r=>`<span style="margin-left:8px">🏖️${nm(r)}</span>`).join('')}</div>`;
-    }
-    html+=`</div>`;
+    const _gk='g:'+r0.sk;
+    _histLazy[_gk]=records;
+    html+=`<div class="history-item hi-acc${_histOpenSk===_gk?' open':''}" data-sk="${esc(_gk)}"><div class="hi-top" role="button" tabindex="0" onclick="toggleHistItem(this.parentNode)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHistItem(this.parentNode)}"><div><div class="hi-name">📖 ${esc(sub?.name||'؟')} <span style="font-size:11px;opacity:.7">(${typeBadge})</span> · ${esc(_stageName(r0.stageId)||'؟')} · ${esc(_groupName(r0.groupId))}</div><div class="hi-date">📅 ${esc(r0.date||'')} — 🕐 ${esc(r0.time||'')}</div></div><div style="display:flex;gap:8px;align-items:center"><span class="status-badge badge-present">✅ ${p}</span><span class="status-badge badge-absent">❌ ${a}</span>${l?`<span class="status-badge badge-leave">🏖️ ${l}</span>`:''}<span class="hi-chev">▾</span></div></div>`;
+    html+=`<div class="hi-detail hi-rows" data-lazy="1"></div></div>`;
   });
   html+=`</div>`;
   document.getElementById('history-content').innerHTML=html;
+  document.querySelectorAll('#history-content .hi-acc.open').forEach(_fillHistRows);
 }
 
 // ===== SETTINGS =====
