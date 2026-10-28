@@ -3255,6 +3255,9 @@ function renderStages(){
   document.getElementById('content-area').innerHTML=html;
 }
 function addStage(){
+  requireDeleteCode('🔒 إضافة مرحلة','إضافة مرحلة جديدة تحتاج <b>الرمز الذي يحدده المعاون</b>.',function(){ _addStageForm(); },'🔓 متابعة',{label:'🔑 رمز المعاون',noConfirm:true,btnStyle:'background:var(--btn-blue)'});
+}
+function _addStageForm(){
   openModal('➕ إضافة مرحلة',`<div class="form-group"><label class="form-label">اسم المرحلة</label><input class="form-input" id="inp-name" placeholder="مثال: المرحلة الأولى"></div>`,()=>{
     const name=document.getElementById('inp-name').value.trim();
     if(!name){toast('أدخل الاسم','e');return;}
