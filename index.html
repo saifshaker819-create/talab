@@ -1954,6 +1954,13 @@ const LOCAL_CREDS = {
   admin:  { user: '',       pass: 'student0191' }
 };
 
+// كلمات سر حساب Firebase (منفصلة عن رمز الدخول المحلي أعلاه).
+// تغيير رمز الدخول لا يغيّر كلمة سر الحساب على Firebase، لذلك تُجرَّب القديمة ثم الجديدة.
+const FB_PASSES = {
+  astath: ['doc@1230', 'doctor@11223'],
+  admin:  ['student0191']
+};
+
 // ===== OFFLINE PENDING FLAG =====
 // علامة واحدة تكفي: الحالة المحلية كاملة محفوظة في الكاش، ونرفع الفروقات فقط عند الاتصال
 const PENDING_KEY = '_pendingSync';
@@ -2444,12 +2451,32 @@ function doLogin(){
   _tryFirebaseAuth(wantsAstath ? 'astath' : 'admin');
 }
 
+let _fbAuthBusy = false;
 function _tryFirebaseAuth(app){
-  const email = app==='astath' ? 'doctor.absences@dental.local' : 'doctor.viewer@dental.local';
-  const pass  = app==='astath' ? LOCAL_CREDS.astath.pass : LOCAL_CREDS.admin.pass;
-  auth.signInWithEmailAndPassword(email, pass).catch(function(){
-    // فشل الاتصال — لا مشكلة، العمل يستمر محلياً
-  });
+  if(auth.currentUser){ startFirebaseListeners(); return; }
+  if(_fbAuthBusy) return;
+  _fbAuthBusy = true;
+  const email  = app==='astath' ? 'doctor.absences@dental.local' : 'doctor.viewer@dental.local';
+  const passes = FB_PASSES[app] || [];
+  const wait = function(ms){ return new Promise(function(r){ setTimeout(r,ms); }); };
+  (async function(){
+    try{
+      // إعادة المحاولة عند ضعف الشبكة أو ازدحام الدخول (عدة دكاترة بنفس الوقت)
+      for(let attempt=0; attempt<7 && !auth.currentUser; attempt++){
+        let credErr=0;
+        for(const pw of passes){
+          try{ await auth.signInWithEmailAndPassword(email,pw); return; }
+          catch(e){
+            const c=(e&&e.code)||'';
+            if(c==='auth/wrong-password'||c==='auth/invalid-credential'||c==='auth/invalid-login-credentials'||c==='auth/user-not-found') credErr++;
+            else break;   // خطأ شبكة/ازدحام: انتظر ثم أعد المحاولة
+          }
+        }
+        if(credErr>=passes.length) break;   // كل الكلمات مرفوضة — لا فائدة من التكرار
+        await wait(1200*(attempt+1));
+      }
+    } finally { _fbAuthBusy = false; }
+  })();
 }
 
 function _loginFail(errEl,attEl,btn,msg){
@@ -3072,13 +3099,21 @@ function _onStateReplaced(){
 }
 
 // مستمع واحد مشترك للنظامين — يبدأ بعد تحميل الكاش حتى لا يُدمج مع حالة فارغة
+let _syncRetry = 0;
 function startSync(){
   if(_syncStarted) return;
   _syncStarted = true;
   _cacheReady.then(function(){
-    db.ref('dentalData').on('value', _onRemoteData, function(error){
-      _syncStarted = false;                    // سيُعاد الربط بعد نجاح المصادقة
+    // لا نربط المستمع قبل اكتمال المصادقة (كان سبب عدم ظهور المراحل أحياناً)
+    if(!auth.currentUser){ _syncStarted = false; return; }
+    db.ref('dentalData').on('value', function(snap){ _syncRetry=0; _onRemoteData(snap); }, function(error){
+      _syncStarted = false;
       setSyncStatus('offline','غير متصل — وضع محلي');
+      // إعادة ربط تلقائية (قد يصل الرفض بعد اكتمال المصادقة مباشرة)
+      if(_syncRetry<8){
+        _syncRetry++;
+        setTimeout(function(){ if(!_syncStarted && currentUser && auth.currentUser) startSync(); }, 1500*_syncRetry);
+      }
     });
   });
 }
