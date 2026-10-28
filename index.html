@@ -3315,6 +3315,9 @@ function renderGroups(stageId,isNew){
 }
 function skipGroupToSubjects(stageId){ _newStageId=null; nav.group=0; nav.subject=null; renderSubjectsNoGroup(stageId); }
 function addGroup(stageId){
+  requireDeleteCode('🔒 إضافة كروب','إضافة كروب جديد تحتاج <b>الرمز الذي يحدده المعاون</b>.',function(){ _addGroupForm(stageId); },'🔓 متابعة',{label:'🔑 رمز المعاون',noConfirm:true,btnStyle:'background:var(--btn-blue)'});
+}
+function _addGroupForm(stageId){
   openModal('➕ إضافة كروب',`<div class="form-group"><label class="form-label">اسم الكروب</label><input class="form-input" id="inp-name" placeholder="مثال: كروب A"></div>`,()=>{
     const name=document.getElementById('inp-name').value.trim();
     if(!name){toast('أدخل الاسم','e');return;}
@@ -3427,6 +3430,9 @@ function _typeChecksHTML(th,pr,lockTh,lockPr){
     +'</div></div>';
 }
 function addSubject(stageId,groupId){
+  requireDeleteCode('🔒 إضافة مادة','إضافة مادة جديدة تحتاج <b>الرمز الذي يحدده المعاون</b>.',function(){ _addSubjectForm(stageId,groupId); },'🔓 متابعة',{label:'🔑 رمز المعاون',noConfirm:true,btnStyle:'background:var(--btn-blue)'});
+}
+function _addSubjectForm(stageId,groupId){
   const names=subjectGroups(stageId).map(function(g){return g.name;});
   openModal('➕ إضافة مادة',
     '<div class="form-group"><label class="form-label">اسم المادة</label><input class="form-input" id="inp-name" list="dl-subs" placeholder="مثال: علم التشريح" autocomplete="off" oninput="_addSubHint('+stageId+')">'
@@ -5427,22 +5433,23 @@ function checkDeleteCode(code){
   if(left){ toast('⛔ محاولات كثيرة خاطئة — انتظر '+left+' ثانية','e'); return false; }
   if(String(code||'')===String(state.clearCode || 'student1')){ _gateSet({}); return true; }
   const g=_gateState(); g.n=(g.n||0)+1;
-  if(g.n>=_GATE_MAX){ g.n=0; g.until=Date.now()+_GATE_LOCK_MS; toast('⛔ 5 محاولات خاطئة — الحذف مقفل دقيقتين','e'); }
+  if(g.n>=_GATE_MAX){ g.n=0; g.until=Date.now()+_GATE_LOCK_MS; toast('⛔ 5 محاولات خاطئة — الرمز مقفل دقيقتين','e'); }
   else toast('❌ الرمز غير صحيح ('+(_GATE_MAX-g.n)+' محاولات متبقية)','e');
   _gateSet(g);
   return false;
 }
-function requireDeleteCode(title, desc, onOk, btnText){
-  // لوحة المعاون: صاحب الرمز — تأكيد عادي
-  if(currentApp==='admin'){ if(confirm(String(desc).replace(/<[^>]+>/g,''))) onOk(); return; }
+function requireDeleteCode(title, desc, onOk, btnText, opts){
+  opts=opts||{};
+  // لوحة المعاون: صاحب الرمز — تأكيد عادي (أو دخول مباشر عند الإضافة)
+  if(currentApp==='admin'){ if(opts.noConfirm){ onOk(); return; } if(confirm(String(desc).replace(/<[^>]+>/g,''))) onOk(); return; }
   closeDeleteGate();
   const o=document.createElement('div');
   o.className='crm-overlay show'; o.id='codeGate'; o.style.zIndex='11000';
   o.innerHTML='<div class="crm-box"><div class="crm-head"><h3>'+title+'</h3><button class="crm-close" onclick="closeDeleteGate()">✕</button></div>'
     +'<div class="crm-panel"><div class="crm-warn">'+desc+'</div>'
-    +'<div class="form-group" style="margin:0"><label class="form-label">🔑 رمز الحذف (يُحدَّد من لوحة المعاون)</label>'
+    +'<div class="form-group" style="margin:0"><label class="form-label">'+(opts.label||'🔑 رمز الحذف (يُحدَّد من لوحة المعاون)')+'</label>'
     +'<input class="form-input" id="cg-pwd" type="password" autocomplete="off" placeholder="أدخل الرمز"></div>'
-    +'<button class="crm-confirm-btn" id="cg-ok">'+(btnText||'🗑️ تأكيد الحذف')+'</button></div></div>';
+    +'<button class="crm-confirm-btn" id="cg-ok"'+(opts.btnStyle?(' style="'+opts.btnStyle+'"'):'')+'>'+(btnText||'🗑️ تأكيد الحذف')+'</button></div></div>';
   document.body.appendChild(o);
   o.addEventListener('click',function(e){ if(e.target===o) closeDeleteGate(); });
   const inp=document.getElementById('cg-pwd');
