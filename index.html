@@ -1513,6 +1513,36 @@ body.light-mode[data-theme="royal"]{--bg:#f4f1fd;--bg2:#ffffff;--bg3:#eae4f8;--a
 .tp-item:active .tp-dot{transform:scale(.92)}
 .tp-item.active{color:var(--text)}
 .tp-item.active .tp-dot{box-shadow:0 0 0 3px var(--bg2),0 0 0 5px var(--accent)}
+
+/* ==========================================================
+   وضوح الأسماء (أسود صافٍ ونص أكبر) + ألوان الحالات + السجل المنسدل
+   (الوضع الليلي: أبيض صافٍ حتى لا يختفي النص على الخلفية الداكنة)
+   ========================================================== */
+body{--name-ink:#fff}
+body.light-mode{--name-ink:#000}
+.st-name{color:var(--name-ink);font-size:16px}
+.num-tile span{color:var(--name-ink);font-size:12px}
+.bc-chip,.bc-chip.is-present,.bc-chip.is-absent,.bc-chip.is-leave{color:var(--name-ink);font-size:14px}
+@media(max-width:700px){.st-name{font-size:15px}}
+
+/* سجل المادة: حقل الاسم ملوّن حسب الحالة */
+.hi-rows{gap:6px;font-size:14px;color:var(--name-ink)}
+.hi-rows .hi-row{padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-weight:700}
+.hi-rows .hi-num{color:inherit;font-weight:800}
+body.light-mode .hi-rows .hi-row.is-absent{background:#fecaca;border-color:#ef4444}
+body.light-mode .hi-rows .hi-row.is-present{background:#bbf7d0;border-color:#4ade80}
+body.light-mode .hi-rows .hi-row.is-leave{background:#bfdbfe;border-color:#60a5fa}
+body:not(.light-mode) .hi-rows .hi-row.is-absent{background:rgba(239,68,68,.30);border-color:rgba(248,113,113,.75)}
+body:not(.light-mode) .hi-rows .hi-row.is-present{background:rgba(74,222,128,.22);border-color:rgba(74,222,128,.65)}
+body:not(.light-mode) .hi-rows .hi-row.is-leave{background:rgba(96,165,250,.26);border-color:rgba(96,165,250,.70)}
+
+/* سجل المادة: قوائم منسدلة */
+.hi-acc>.hi-top{cursor:pointer;margin-bottom:0;-webkit-tap-highlight-color:transparent}
+.hi-acc.open>.hi-top{margin-bottom:8px}
+.hi-acc:not(.open)>.hi-rows{display:none}
+.hi-acc.open{border-color:var(--accent)}
+.hi-chev{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--glass3);color:var(--text2);font-size:13px;transition:transform .2s}
+.hi-acc.open .hi-chev{transform:rotate(180deg)}
 </style>
 </head>
 <body class="light-mode">
@@ -4023,6 +4053,20 @@ function switchAttTab(tab){
   document.getElementById('att-panel-history').style.display=tab==='history'?'block':'none';
 }
 
+// ===== السجل المنسدل: تاريخ واحد مفتوح فقط — الضغط خارجه أو على تاريخ آخر يغلقه =====
+let _histOpenSk=null;
+function toggleHistItem(el){
+  if(!el) return;
+  const wasOpen=el.classList.contains('open');
+  document.querySelectorAll('.hi-acc.open').forEach(function(x){ x.classList.remove('open'); });
+  if(wasOpen){ _histOpenSk=null; } else { el.classList.add('open'); _histOpenSk=el.getAttribute('data-sk'); }
+}
+document.addEventListener('click',function(e){
+  if(!document.querySelector('.hi-acc.open')) return;
+  if(e.target && e.target.closest && e.target.closest('.hi-acc')) return;   // الضغط داخل القائمة المفتوحة لا يغلقها
+  document.querySelectorAll('.hi-acc.open').forEach(function(x){ x.classList.remove('open'); });
+  _histOpenSk=null;
+});
 function buildSubjectHistory(subjectId,groupId){
   const recs=(state.attendance||[]).filter(function(a){return a.subjectId===subjectId&&a.groupId===groupId;});
   const by={};
@@ -4030,7 +4074,7 @@ function buildSubjectHistory(subjectId,groupId){
   const keys=Object.keys(by).sort(function(a,b){ return (by[b][0].savedAt||0)-(by[a][0].savedAt||0); });
   if(!keys.length) return '<div class="empty-state"><div class="es-icon">📋</div><p>لا يوجد سجل بعد.</p></div>';
   const act=getActiveSession(subjectId+'-'+groupId);
-  let html='<div class="history-list">';
+  let html='<div class="history-list" style="max-height:none">';
   keys.forEach(function(sk){
     const records=by[sk];
     const p=records.filter(function(r){return r.status==='present';}).length;
@@ -4038,14 +4082,14 @@ function buildSubjectHistory(subjectId,groupId){
     const l=records.length-p-a;
     const editable=!!(act && act.session===records[0].session);
     const remaining=editable?Math.ceil((EDIT_MS-(Date.now()-act.savedAt))/60000):0;
-    html+='<div class="history-item"><div class="hi-top"><div class="hi-name">📅 '+esc(records[0].date||'')+' — '+esc(records[0].time||'')
+    html+='<div class="history-item hi-acc'+(_histOpenSk===sk?' open':'')+'" data-sk="'+esc(sk)+'"><div class="hi-top" role="button" tabindex="0" onclick="toggleHistItem(this.parentNode)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleHistItem(this.parentNode)}"><div class="hi-name">📅 '+esc(records[0].date||'')+' — '+esc(records[0].time||'')
       +(editable?' <span class="pill warn">⏱ متاح التعديل ('+remaining+' د)</span>':' <span class="pill ok">✓ محفوظ</span>')
-      +'</div><div style="display:flex;gap:6px"><span class="status-badge badge-present">✅ '+p+'</span><span class="status-badge badge-absent">❌ '+a+'</span>'+(l?'<span class="status-badge badge-leave">🏖️ '+l+'</span>':'')+'</div></div>';
+      +'</div><div style="display:flex;gap:6px"><span class="status-badge badge-present">✅ '+p+'</span><span class="status-badge badge-absent">❌ '+a+'</span>'+(l?'<span class="status-badge badge-leave">🏖️ '+l+'</span>':'')+'<span class="hi-chev">▾</span></div></div>';
     html+='<div class="hi-detail hi-rows">';
     records.slice().sort(function(x,y){ const X=(state.students||[]).find(function(s){return s.id===x.studentId;})||{}, Y=(state.students||[]).find(function(s){return s.id===y.studentId;})||{}; return (parseInt(X.num)||1e9)-(parseInt(Y.num)||1e9); }).forEach(function(r){
       const st=(state.students||[]).find(function(s){return s.id===r.studentId;});
       const ic=r.status==='absent'?'❌':r.status==='leave'?'🏖️':'✅';
-      html+='<div class="hi-row"><span>'+ic+' '+(st&&st.num?'<b class="hi-num">'+st.num+'</b> ':'')+esc(st?st.name:'؟')+(r.note?' ('+esc(r.note)+')':'')+'</span>';
+      html+='<div class="hi-row is-'+(r.status==='absent'?'absent':r.status==='leave'?'leave':'present')+'"><span>'+ic+' '+(st&&st.num?'<b class="hi-num">'+st.num+'</b> ':'')+esc(st?st.name:'؟')+(r.note?' ('+esc(r.note)+')':'')+'</span>';
       if(editable){
         html+='<span class="hi-sel">'+['present','absent','leave'].filter(function(x){return x!==r.status;}).map(function(x){
           return '<button class="mini-btn '+(x==='present'?'p':x==='absent'?'a':'')+'" onclick="changeAttRecord(\''+r.id+'\',\''+x+'\','+subjectId+','+groupId+')">'+(x==='present'?'حاضر':x==='absent'?'غائب':'🏖️ مجاز')+'</button>';
