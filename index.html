@@ -540,6 +540,17 @@ body.light-mode #adminApp .admin-header{background:rgba(238,242,249,0.92);border
 
 .del-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:16px}
 .del-modal.open{display:flex;animation:fadeInModal .2s ease}
+.del-box{max-height:90vh;overflow-y:auto}
+.ad-sess-del{display:flex;justify-content:flex-end;padding-top:10px;margin-top:6px;border-top:1px dashed var(--border)}
+.ad-btn.danger{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45);color:var(--absent)}
+.ad-btn.danger:hover{background:rgba(239,68,68,.22)}
+.ad-sess.dup{border-color:rgba(245,158,11,.6);box-shadow:inset 3px 0 0 #f59e0b}
+.ad-dup-tag{display:inline-block;font-size:11px;font-weight:800;padding:1px 8px;border-radius:20px;background:rgba(245,158,11,.18);color:#d97706;vertical-align:middle}
+.ad-dup-note{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7;margin-bottom:12px}
+.ad-del-card{margin:10px 0;padding:10px 12px;border-radius:12px;background:var(--glass2);border:1px solid var(--border2);display:flex;flex-direction:column;gap:2px}
+.ad-del-card b{color:var(--text)} .ad-del-card small{font-size:12px;color:var(--text2)}
+.ad-del-names{font-size:12.5px;margin-top:6px;line-height:1.7}
+.ad-del-keep{margin:0 0 10px;padding:8px 10px;border-radius:10px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.35);font-size:13px;color:var(--text)}
 .del-box{background:var(--bg2);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius);padding:28px;max-width:460px;width:100%;box-shadow:var(--shadow)}
 .del-title{font-size:18px;font-weight:800;color:var(--absent);margin-bottom:12px}
 .del-body{font-size:14px;color:var(--text2);margin-bottom:20px;line-height:1.7}
@@ -3199,8 +3210,23 @@ function _onRemoteData(snapshot){
   persistCacheSoon();
 }
 
+function _pruneDeletedSessions(){
+  const act=window._activeSessions||{}; let ch=false;
+  Object.keys(act).forEach(function(key){
+    const a=act[key]; if(!a) return;
+    const alive=(state.attendance||[]).some(function(r){ return a.sk ? r.sk===a.sk : r.session===a.session; });
+    if(!alive){
+      delete act[key];
+      if(window._sessionAtt) delete window._sessionAtt[key];
+      if(window._editTimers && window._editTimers[key]){ clearTimeout(window._editTimers[key]); delete window._editTimers[key]; }
+      ch=true;
+    }
+  });
+  if(ch){ try{ saveActiveSessions(); }catch(e){} if(currentApp==='astath') toast('ℹ️ حذف المعاون محاضرة كانت مفتوحة للتعديل','i'); }
+}
 function _onStateReplaced(){
   _stateVer++;
+  if(currentApp==='astath') _pruneDeletedSessions();
   if(currentApp==='astath') refreshCurrentView();
   else if(currentApp==='admin'){ renderAdmin(); if(typeof _pvIsOpen==='function' && _pvIsOpen()) renderPromoView(); }
 }
@@ -6195,12 +6221,19 @@ function adRecordsHTML(ix,agg){
   let h='<div class="ad-toolbar"><h2>📋 السجلات <span class="ad-count">'+sess.length+' محاضرة · '+_adCache.recs.length+' سجل</span></h2><div class="r">'
     +'<button class="ad-btn green" onclick="exportAdminExcel()">📥 Excel</button><button class="ad-btn ad-hide-m" onclick="window.print()">🖨️</button></div></div>';
   if(!sess.length) return h+_adEmpty('📭','لا توجد سجلات مطابقة للفلتر');
+  // أكثر من محاضرة لنفس المادة والكروب في نفس اليوم ← تنبيه (غالباً تسجيل مكرر بالخطأ)
+  const dayKey=function(s){ const d=new Date(s.at||0); return s.subjectId+'_'+(s.groupId||0)+'_'+d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); };
+  const perDay={}; sess.forEach(function(s){ const k=dayKey(s); perDay[k]=(perDay[k]||0)+1; });
+  const nDup=sess.filter(function(s){ return perDay[dayKey(s)]>1; }).length;
+  if(nDup) h+='<div class="ad-dup-note">⚠️ يوجد <b>'+nDup+'</b> محاضرة مسجّلة أكثر من مرة لنفس المادة والكروب في نفس اليوم (معلَّمة بالأصفر). افتح المحاضرة الخاطئة واضغط <b>🗑️ حذف هذه المحاضرة</b> — تُحذف هي فقط وتبقى الصحيحة.</div>';
   h+='<div class="ad-list">';
   sess.slice(0,AD.lim.records).forEach(function(s){
     const open=!!AD.open[s.sk];
+    const dup=perDay[dayKey(s)]>1;
     s.recs.sort(function(a,b){ const A=ix.st.get(a.studentId)||{}, B=ix.st.get(b.studentId)||{}; const o={absent:0,leave:1,present:2}; return (o[a.status]-o[b.status]) || ((parseInt(A.num)||1e9)-(parseInt(B.num)||1e9)); });
-    h+='<div class="ad-sess'+(open?' open':'')+'" id="ads-'+s.sk+'"><div class="ad-sess-h" onclick="adToggleSess(\''+s.sk+'\')"><div class="ad-item-main"><div class="ad-item-title">'+esc(_adSessTitle(ix,s))+'</div><div class="ad-item-sub">'+_adSessSub(s)+'</div></div><div class="ad-mini">'+_adN(s.p,s.a,s.l)+'</div><span class="ad-caret">▾</span></div>'
-      +'<div class="ad-sess-b">'+s.recs.map(function(r){ const st=ix.st.get(r.studentId); return '<div class="ad-rec"><span class="st-num sm">'+(st&&st.num||'–')+'</span><span class="ad-rec-n">'+esc(st?st.name:'؟')+'</span>'+_adStatusSel(r)+'</div>'; }).join('')+'</div></div>';
+    h+='<div class="ad-sess'+(open?' open':'')+(dup?' dup':'')+'" id="ads-'+s.sk+'"><div class="ad-sess-h" onclick="adToggleSess(\''+s.sk+'\')"><div class="ad-item-main"><div class="ad-item-title">'+esc(_adSessTitle(ix,s))+(dup?' <span class="ad-dup-tag">مكررة اليوم</span>':'')+'</div><div class="ad-item-sub">'+_adSessSub(s)+'</div></div><div class="ad-mini">'+_adN(s.p,s.a,s.l)+'</div><span class="ad-caret">▾</span></div>'
+      +'<div class="ad-sess-b">'+s.recs.map(function(r){ const st=ix.st.get(r.studentId); return '<div class="ad-rec"><span class="st-num sm">'+(st&&st.num||'–')+'</span><span class="ad-rec-n">'+esc(st?st.name:'؟')+'</span>'+_adStatusSel(r)+'</div>'; }).join('')
+      +'<div class="ad-sess-del"><button class="ad-btn danger" onclick="adDeleteSession(\''+s.sk+'\')">🗑️ حذف هذه المحاضرة</button></div></div></div>';
   });
   h+='</div>';
   if(sess.length>AD.lim.records) h+='<button class="ad-btn ad-more" onclick="AD.lim.records+=30;renderAdmin()">عرض المزيد ('+(sess.length-AD.lim.records)+')</button>';
@@ -6272,7 +6305,8 @@ function openAdSession(sk){
   recs.sort(function(a,b){ const x=ix.st.get(a.studentId)||{}, y=ix.st.get(b.studentId)||{}; return (parseInt(x.num)||1e9)-(parseInt(y.num)||1e9); });
   let h='<div class="ad-det-h"><div class="ad-avatar big">📖</div><div><b>'+esc(_adSessTitle(ix,s))+'</b><small>'+_adSessSub(s)+'</small></div></div>'
     +'<div class="ad-det-k"><div class="p"><b>'+P+'</b>حضور</div><div class="a"><b>'+A+'</b>غياب</div><div class="l"><b>'+L+'</b>مجاز</div><div><b>'+recs.length+'</b>المجموع</div></div>'
-    +'<div class="ad-det-recs">'+recs.map(function(r){ const st=ix.st.get(r.studentId); return '<div class="ad-rec"><span class="st-num sm">'+(st&&st.num||'–')+'</span><span class="ad-rec-n">'+esc(st?st.name:'؟')+'</span>'+_adStatusSel(r)+'</div>'; }).join('')+'</div>';
+    +'<div class="ad-det-recs">'+recs.map(function(r){ const st=ix.st.get(r.studentId); return '<div class="ad-rec"><span class="st-num sm">'+(st&&st.num||'–')+'</span><span class="ad-rec-n">'+esc(st?st.name:'؟')+'</span>'+_adStatusSel(r)+'</div>'; }).join('')+'</div>'
+    +'<div class="ad-sess-del"><button class="ad-btn danger" onclick="adDeleteSession(\''+sk+'\')">🗑️ حذف هذه المحاضرة</button></div>';
   _adShowModal('📋 تفاصيل المحاضرة', h);
 }
 function _adShowModal(title,html){
@@ -6364,17 +6398,55 @@ function exportWarningsExcel(){
   toast('تم تصدير قائمة المنذَرين ✅');
 }
 
+// ===== حذف محاضرة واحدة — بمعرّفها الفريد فقط، فلا تُمسّ أي محاضرة أخرى ولو بنفس المادة واليوم =====
+let _adDelSess=null;
+function adDeleteSession(sk){
+  const recs=(state.attendance||[]).filter(function(r){return r.sk===sk;});
+  if(!recs.length){ toast('المحاضرة غير موجودة (ربما حُذفت مسبقاً)','e'); renderAdmin(); return; }
+  const ix=adIndex(), r0=recs[0];
+  const s={subjectId:r0.subjectId, stageId:r0.stageId, groupId:r0.groupId, at:r0.savedAt};
+  let P=0,A=0,L=0; recs.forEach(function(r){ if(r.status==='absent')A++; else if(r.status==='leave')L++; else P++; });
+  const nm=function(st){ const x=ix.st.get(st.studentId); return esc(x?x.name:'؟'); };
+  // المحاضرات الأخرى لنفس المادة والكروب في نفس اليوم — تبقى كما هي
+  const d0=new Date(r0.savedAt||0), same=new Set();
+  (state.attendance||[]).forEach(function(r){ if(r.sk!==sk && r.subjectId===r0.subjectId && (r.groupId||0)===(r0.groupId||0)){ const d=new Date(r.savedAt||0); if(d.toDateString()===d0.toDateString()) same.add(r.sk); } });
+  _adDelSess={sk:sk, n:recs.length};
+  document.getElementById('adminDelBody').innerHTML=
+    'سيتم حذف هذه المحاضرة <b>فقط</b> مع كل سجلاتها (الحضور والغياب والإجازات):'
+    +'<div class="ad-del-card"><b>'+esc(_adSessTitle(ix,s))+'</b><small>'+_adSessSub(s)+'</small>'
+    +'<div class="ad-mini" style="margin-top:6px">'+_adN(P,A,L)+'</div>'
+    +(A?'<div class="ad-del-names"><b>الغائبون:</b> '+recs.filter(function(r){return r.status==='absent';}).map(nm).join('، ')+'</div>':'')
+    +(L?'<div class="ad-del-names"><b>المجازون:</b> '+recs.filter(function(r){return r.status==='leave';}).map(nm).join('، ')+'</div>':'')
+    +'</div>'
+    +(same.size?'<div class="ad-del-keep">✅ توجد '+same.size+' محاضرة أخرى لنفس المادة والكروب في هذا اليوم — <b>لن تُحذف</b>.</div>':'')
+    +'هذا الإجراء <strong>لا يمكن التراجع عنه</strong>. هل أنت متأكد؟';
+  if(document.getElementById('modalOverlay').classList.contains('open')) closeModal();
+  document.getElementById('adminDelModal').classList.add('open');
+}
+
 // ===== حذف السجلات المصفّاة =====
 let adminPendingDeleteIds=[];
 function openAdminDeleteModal(){
+  _adDelSess=null;
   const ix=adIndex();
   adminPendingDeleteIds=adFiltered(ix).map(function(r){return r.id;});
   if(!adminPendingDeleteIds.length){ toast('لا توجد سجلات لحذفها','e'); return; }
   document.getElementById('adminDelBody').innerHTML='سيتم حذف <strong style="color:var(--absent)">'+adminPendingDeleteIds.length+' سجل</strong> مطابق للفلتر الحالي:<br><b>'+esc(adFilterText(ix))+'</b><br><br>هذا الإجراء <strong>لا يمكن التراجع عنه</strong>. هل أنت متأكد؟';
   document.getElementById('adminDelModal').classList.add('open');
 }
-function closeAdminDeleteModal(){ document.getElementById('adminDelModal').classList.remove('open'); }
+function closeAdminDeleteModal(){ _adDelSess=null; document.getElementById('adminDelModal').classList.remove('open'); }
 function confirmAdminDelete(){
+  if(_adDelSess){
+    const sk=_adDelSess.sk, before=(state.attendance||[]).length;
+    state.attendance=(state.attendance||[]).filter(function(r){return r.sk!==sk;});
+    const n=before-state.attendance.length;
+    delete AD.open[sk];
+    _adDelSess=null;
+    if(n) save();
+    closeAdminDeleteModal(); renderAdmin();
+    toast(n?('🗑️ تم حذف المحاضرة ('+n+' سجل) — بقية المحاضرات كما هي'+(isOnline?' ✅':' · سيُرفع عند الاتصال ⏳')):'المحاضرة غير موجودة', n?'s':'e');
+    return;
+  }
   if(!adminPendingDeleteIds.length) return;
   const ids=new Set(adminPendingDeleteIds);
   state.attendance=(state.attendance||[]).filter(function(r){return !ids.has(r.id);});
