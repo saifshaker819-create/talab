@@ -424,6 +424,21 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .settings-list{display:flex;flex-direction:column;gap:8px}
 .settings-item{display:flex;align-items:center;justify-content:space-between;background:var(--glass2);border:1px solid var(--border);border-radius:var(--radius2);padding:12px 16px;transition:var(--transition)}
 .settings-item:hover{border-color:var(--border2)}
+/* كروبات المواد */
+.sg-box{border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--glass2);max-height:200px;overflow:auto}
+.sg-box.tall{max-height:280px}
+.sg-subj{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 4px;border-bottom:1px dashed var(--border);flex-wrap:wrap}
+.sg-subj:last-child{border-bottom:0}
+.sg-types{display:flex;gap:14px;flex-wrap:wrap}
+.sg-chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.sg-chk input,.sg-row input{width:18px;height:18px;accent-color:var(--accent);flex-shrink:0}
+.sg-tools{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.sg-tools .search-input{flex:1;min-width:140px}
+.sg-row{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+.sg-row:last-child{border-bottom:0}
+.sg-nm{display:flex;flex-direction:column;font-size:13.5px}
+.sg-nm small{color:var(--text3);font-size:11px}
+.sg-badge{font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(var(--accent-rgb),.12);color:var(--accent);font-weight:700;margin-inline-start:6px}
 .si-info{font-size:14px;font-weight:600}
 .si-meta{font-size:12px;color:var(--text2);margin-top:2px}
 .si-actions{display:flex;gap:6px}
@@ -3154,7 +3169,7 @@ function _resolveIdClashes(remoteState){
   }); });
   if(!n) return false;
   const m=function(k,v){ return remap[k].has(v) ? remap[k].get(v) : v; };
-  (state.groups||[]).forEach(function(g){ g.stageId=m('stages',g.stageId); });
+  (state.groups||[]).forEach(function(g){ g.stageId=m('stages',g.stageId); if(Array.isArray(g.subjectIds)) g.subjectIds=g.subjectIds.map(function(v){return m('subjects',v);}); if(Array.isArray(g.studentIds)) g.studentIds=g.studentIds.map(function(v){return m('students',v);}); });
   (state.subjects||[]).forEach(function(s){ s.stageId=m('stages',s.stageId); });
   (state.students||[]).forEach(function(s){ s.stageId=m('stages',s.stageId); if(s.groupId) s.groupId=m('groups',s.groupId); });
   (state.attendance||[]).forEach(function(r){
@@ -3314,7 +3329,8 @@ function refreshCurrentView(){
   const idx=[...document.querySelectorAll('#astathApp .nav-tab')].indexOf(active);
   const tab=tabs[idx];
   if(tab==='stages'){
-    if(nav.subject) renderAttendance(nav.subject,nav.group);
+    if(nav.subject) renderAttendance(nav.subject,nav.sg||nav.group);
+    else if(nav.ssub) _renderScopedGroups(nav.ssub);
     else if(nav.sname && nav.stage) renderSubjectTypes(nav.stage,nav.group||0,nav.sname);
     else if(nav.group===0) renderSubjectsNoGroup(nav.stage);
     else if(nav.group) renderSubjects(nav.stage,nav.group);
@@ -3428,14 +3444,14 @@ function _deleteStageNow(id){
 
 // ===== GROUPS =====
 function clickStage(stageId){
-  nav.stage=stageId; nav.group=null; nav.subject=null; nav.sname=null;
-  const hasGroups=(state.groups||[]).some(function(g){return g.stageId===stageId;});
+  nav.stage=stageId; nav.group=null; nav.subject=null; nav.sname=null; nav.sg=null; nav.ssub=null;
+  const hasGroups=stageGroups(stageId).length>0;
   if(!hasGroups){ nav.group=0; renderSubjectsNoGroup(stageId); }
   else { renderGroups(stageId); }
 }
 function renderGroups(stageId,isNew){
   const stage=state.stages.find(s=>s.id===stageId); renderBreadcrumb();
-  const groups=(state.groups||[]).filter(g=>g.stageId===stageId);
+  const groups=stageGroups(stageId);
   let html=`<div class="cards-header"><div class="cards-title">كروبات <span>${stage?.name||''}</span></div><button class="btn-add" onclick="addGroup(${stageId})">＋ إضافة كروب</button></div>`;
   if(isNew){
     html+=`<div style="margin-bottom:16px;padding:16px 20px;border-radius:var(--radius2);background:rgba(251,191,36,0.08);border:1.5px dashed rgba(251,191,36,0.4);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;"><div style="display:flex;align-items:center;gap:12px;"><span style="font-size:24px">💡</span><div><div style="font-size:14px;font-weight:700;color:var(--accent4);margin-bottom:3px;">هل هذه المرحلة بدون كروبات؟</div><div style="font-size:12px;color:var(--text2);">يمكنك تخطي هذه الخطوة والانتقال مباشرة إلى إضافة المواد.</div></div></div><button onclick="skipGroupToSubjects(${stageId})" style="padding:9px 22px;border-radius:10px;background:rgba(251,191,36,0.15);border:1.5px solid rgba(251,191,36,0.5);color:var(--accent4);font-family:'Tajawal',sans-serif;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">⏭ تخطي</button></div>`;
@@ -3449,7 +3465,7 @@ function renderGroups(stageId,isNew){
   html+=`</div>`;
   document.getElementById('content-area').innerHTML=html;
 }
-function skipGroupToSubjects(stageId){ _newStageId=null; nav.group=0; nav.subject=null; renderSubjectsNoGroup(stageId); }
+function skipGroupToSubjects(stageId){ _newStageId=null; nav.group=0; nav.subject=null; nav.sg=null; nav.ssub=null; renderSubjectsNoGroup(stageId); }
 function addGroup(stageId){
   requireDeleteCode('🔒 إضافة كروب','إضافة كروب جديد تحتاج <b>الرمز الذي يحدده المعاون</b>.',function(){ _addGroupForm(stageId); },'🔓 متابعة',{label:'🔑 رمز المعاون',noConfirm:true,btnStyle:'background:var(--btn-blue)'});
 }
@@ -3463,6 +3479,7 @@ function _addGroupForm(stageId){
 }
 function editGroup(id){
   const g=state.groups.find(x=>x.id===id);
+  if(_isScoped(g)){ _sgOpenForm(id); return; }
   openModal('✏️ تعديل الكروب',`<div class="form-group"><label class="form-label">اسم الكروب</label><input class="form-input" id="inp-name" value="${esc(g.name)}"></div>`,()=>{
     const name=document.getElementById('inp-name').value.trim();
     if(!name){toast('أدخل الاسم','e');return;}
@@ -3471,6 +3488,14 @@ function editGroup(id){
 }
 function deleteGroup(id){
   const g0=state.groups.find(x=>x.id===id); if(!g0) return;
+  if(_isScoped(g0)){
+    requireDeleteCode('🗑️ حذف كروب مادة','سيتم حذف الكروب <b>"'+esc(g0.name)+'"</b> من '+esc(_stageName(g0.stageId))+' فقط — <b>لن يُحذف أي طالب</b>، وتبقى سجلات الحضور السابقة محفوظة.',function(){
+      state.groups=state.groups.filter(x=>x.id!==id);
+      if(nav.sg===id){ nav.sg=null; nav.ssub=null; nav.subject=null; }
+      save(); _afterDelete(); toast('تم حذف الكروب','e');
+    });
+    return;
+  }
   const nS=(state.students||[]).filter(x=>x.groupId===id).length;
   requireDeleteCode('🗑️ حذف كروب','سيتم حذف <b>"'+esc(g0.name)+'"</b> من '+esc(_stageName(g0.stageId))+' مع '+nS+' طالب وكل سجلاتهم نهائياً.',function(){ _deleteGroupNow(id); });
 }
@@ -3484,7 +3509,7 @@ function _deleteGroupNow(id){
 }
 
 // ===== SUBJECTS =====
-function clickGroup(groupId){ nav.group=groupId; nav.subject=null; renderSubjects(nav.stage,groupId); }
+function clickGroup(groupId){ nav.group=groupId; nav.subject=null; nav.sg=null; nav.ssub=null; renderSubjects(nav.stage,groupId); }
 // ===== SUBJECTS — المادة تظهر مرة واحدة؛ النظري والعملي نوعان تحتها =====
 // المواد بنفس الاسم في نفس المرحلة تُجمع في بطاقة واحدة (البيانات كما هي: سجل مستقل لكل نوع)
 function _subKey(name){ return _normAr(String(name||'').trim()).toLowerCase(); }
@@ -3503,22 +3528,29 @@ function subjectGroups(stageId){
   return out;
 }
 function _findSubGroup(stageId,key){ return subjectGroups(stageId).find(function(g){ return g.key===key; }) || null; }
-function _lastRec(subIds,groupId){
+function _lastRec(subIds,groupId,withScoped){
   let last=null;
-  (state.attendance||[]).forEach(function(a){ if(subIds.indexOf(a.subjectId)>=0 && (a.groupId||0)===(groupId||0) && (!last || (a.savedAt||0)>(last.savedAt||0))) last=a; });
+  const sgs=new Set();
+  if(withScoped) (state.groups||[]).forEach(function(g){ if(_isScoped(g) && g.subjectIds.some(function(i){return subIds.indexOf(i)>=0;})) sgs.add(g.id); });
+  (state.attendance||[]).forEach(function(a){ if(subIds.indexOf(a.subjectId)>=0 && ((a.groupId||0)===(groupId||0) || sgs.has(a.groupId)) && (!last || (a.savedAt||0)>(last.savedAt||0))) last=a; });
   return last;
 }
-function _lecCount(subId,groupId){ const s=new Set(); (state.attendance||[]).forEach(function(a){ if(a.subjectId===subId && (a.groupId||0)===(groupId||0)) s.add(a.sk); }); return s.size; }
+function _lecCount(subId,groupId,withScoped){
+  const s=new Set(), sgs=new Set();
+  if(withScoped) _scopedGroupsFor(subId).forEach(function(g){ sgs.add(g.id); });
+  (state.attendance||[]).forEach(function(a){ if(a.subjectId===subId && ((a.groupId||0)===(groupId||0) || sgs.has(a.groupId))) s.add(a.sk); });
+  return s.size;
+}
 
 // قائمة المواد (مع كروب أو بدون)
 function _renderSubjectList(stageId,groupId){
-  nav.sname=null; renderBreadcrumb();
+  nav.sname=null; nav.ssub=null; nav.sg=null; renderBreadcrumb();
   const title = groupId ? ((state.groups||[]).find(function(g){return g.id===groupId;})||{}).name : ((state.stages||[]).find(function(s){return s.id===stageId;})||{}).name;
   const groups=subjectGroups(stageId);
   let html='<div class="cards-header"><div class="cards-title">مواد <span>'+esc(title||'')+'</span></div><button class="btn-add" onclick="addSubject('+stageId+','+(groupId||0)+')">＋ إضافة مادة</button></div><div class="cards-grid">';
   if(!groups.length) html+='<div class="empty-state" style="grid-column:1/-1"><div class="es-icon">📖</div><p>لا توجد مواد.</p></div>';
   groups.forEach(function(g,i){
-    const last=_lastRec(g.items.map(function(s){return s.id;}),groupId);
+    const last=_lastRec(g.items.map(function(s){return s.id;}),groupId,true);
     const kq=esc(JSON.stringify(g.key)).replace(/'/g,'&#39;');
     html+='<div class="card" onclick="clickSubjectGroup('+stageId+','+(groupId||0)+','+kq+')"><div class="card-actions">'
       +'<button class="card-action-btn ca-edit" onclick="event.stopPropagation();editSubjectGroup('+stageId+','+kq+')">✏️</button>'
@@ -3537,19 +3569,19 @@ function clickSubjectGroup(stageId,groupId,key){
   const g=_findSubGroup(stageId,key); if(!g){ refreshCurrentView(); return; }
   nav.sname=key;
   if(g.items.length===1){ clickSubject(g.items[0].id,groupId); return; }
-  nav.subject=null;
+  nav.subject=null; nav.sg=null; nav.ssub=null;
   renderSubjectTypes(stageId,groupId,key);
 }
 function renderSubjectTypes(stageId,groupId,key){
   const g=_findSubGroup(stageId,key);
   if(!g || g.items.length<2){ nav.sname=null; if(g && g.items.length===1){ nav.sname=key; clickSubject(g.items[0].id,groupId); } else navTo('subjects'); return; }
-  nav.sname=key; nav.subject=null; renderBreadcrumb();
+  nav.sname=key; nav.subject=null; nav.sg=null; nav.ssub=null; renderBreadcrumb();
   const cnt={};
   let html='<div class="cards-header"><div class="cards-title">'+esc(g.name)+' <span>اختر النوع</span></div></div><div class="cards-grid">';
   g.items.forEach(function(s,i){
     const t=_stype(s); cnt[t]=(cnt[t]||0)+1;
     const n=g.items.filter(function(x){return _stype(x)===t;}).length;
-    const last=_lastRec([s.id],groupId), lec=_lecCount(s.id,groupId);
+    const last=_lastRec([s.id],groupId,true), lec=_lecCount(s.id,groupId,true);
     html+='<div class="card" onclick="clickSubject('+s.id+','+(groupId||0)+')">'
       +'<div class="card-icon">'+_TYPE_ICON[t]+'</div><div class="card-name">'+_TYPE_LBL[t]+(n>1?' '+cnt[t]:'')+'</div>'
       +'<div class="card-meta">'+(lec?lec+' محاضرة · آخر تسجيل: '+esc(last.date||''):'لم يُسجَّل بعد')+'</div><div class="card-accent color-'+(t==='practical'?3:1)+'"></div></div>';
@@ -3646,6 +3678,7 @@ function deleteSubjectGroup(stageId,key){
   const n=(state.attendance||[]).filter(function(a){return ids.indexOf(a.subjectId)>=0;}).length;
   requireDeleteCode('🗑️ حذف مادة','سيتم حذف مادة <b>"'+esc(g.name)+'"</b> ('+g.items.map(function(s){return _TYPE_LBL[_stype(s)];}).join(' + ')+') مع '+n+' سجل حضور وغياب نهائياً.',function(){
     state.subjects=state.subjects.filter(function(s){return ids.indexOf(s.id)<0;});
+    _pruneScopedGroups();
     state.attendance=(state.attendance||[]).filter(function(a){return ids.indexOf(a.subjectId)<0;});
     if(nav.sname===key){ nav.sname=null; nav.subject=null; }
     save(); _afterDelete(); toast('تم الحذف','e');
@@ -3668,6 +3701,7 @@ function deleteSubject(id){
   const s=state.subjects.find(function(x){return x.id===id;}); if(!s) return;
   requireDeleteCode('🗑️ حذف مادة','سيتم حذف <b>"'+esc(s.name)+'" ('+_TYPE_LBL[_stype(s)]+')</b> وكل سجلات حضورها وغيابها نهائياً.',function(){
     state.subjects=state.subjects.filter(function(x){return x.id!==id;});
+    _pruneScopedGroups();
     state.attendance=(state.attendance||[]).filter(function(x){return x.subjectId!==id;});
     if(nav.subject===id) nav.subject=null;
     save(); _afterDelete(); toast('تم الحذف','e');
@@ -3680,24 +3714,34 @@ function renderBreadcrumb(){
   let items=['<span class="bc-item" onclick="navTo(\'stages\')">🏠 الرئيسية</span>'];
   if(nav.stage){ const s=state.stages.find(function(x){return x.id===nav.stage;}); if(s) items.push('<span class="bc-sep">›</span><span class="bc-item" onclick="navTo(\'groups\')">'+esc(s.name)+'</span>'); }
   if(nav.group){ const g=state.groups.find(function(x){return x.id===nav.group;}); if(g) items.push('<span class="bc-sep">›</span><span class="bc-item" onclick="navTo(\'subjects\')">'+esc(g.name)+'</span>'); }
-  const sub = nav.subject ? state.subjects.find(function(x){return x.id===nav.subject;}) : null;
+  const subId = nav.subject || nav.ssub || null;
+  const sub = subId ? state.subjects.find(function(x){return x.id===subId;}) : null;
+  const scG = nav.sg ? _scopedGroup(nav.sg) : null;
   const sg = nav.stage ? (nav.sname ? _findSubGroup(nav.stage,nav.sname) : (sub ? _findSubGroup(nav.stage,_subKey(sub.name)) : null)) : null;
   if(sg){
     const multi=sg.items.length>1;
-    items.push('<span class="bc-sep">›</span><span class="bc-item'+(sub&&multi?'':' active')+'"'+(sub&&multi?' onclick="navTo(\'types\')"':'')+'>'+esc(sg.name)+'</span>');
-    if(sub && multi) items.push('<span class="bc-sep">›</span><span class="bc-item active">'+_TYPE_ICON[_stype(sub)]+' '+_TYPE_LBL[_stype(sub)]+'</span>');
-  } else if(sub) items.push('<span class="bc-sep">›</span><span class="bc-item active">'+esc(sub.name)+'</span>');
+    const nameClick = (sub&&multi) ? ' onclick="navTo(\'types\')"' : (scG ? ' onclick="navTo(\'sgroups\')"' : '');
+    items.push('<span class="bc-sep">›</span><span class="bc-item'+(nameClick?'':' active')+'"'+nameClick+'>'+esc(sg.name)+'</span>');
+    if(sub && multi) items.push('<span class="bc-sep">›</span><span class="bc-item'+(scG?'':' active')+'"'+(scG?' onclick="navTo(\'sgroups\')"':'')+'>'+_TYPE_ICON[_stype(sub)]+' '+_TYPE_LBL[_stype(sub)]+'</span>');
+  } else if(sub) items.push('<span class="bc-sep">›</span><span class="bc-item'+(scG?'':' active')+'"'+(scG?' onclick="navTo(\'sgroups\')"':'')+'>'+esc(sub.name)+'</span>');
+  if(scG) items.push('<span class="bc-sep">›</span><span class="bc-item active">👥 '+esc(scG.name)+'</span>');
   el.innerHTML=items.join('');
 }
 function navTo(level){
   if(level==='stages'){ nav={stage:null,group:null,subject:null,sname:null}; _newStageId=null; renderStages(); }
-  else if(level==='groups'){ nav.group=null; nav.subject=null; nav.sname=null; renderGroups(nav.stage); }
-  else if(level==='subjects'){ nav.subject=null; nav.sname=null; _renderSubjectList(nav.stage, nav.group||0); }
+  else if(level==='groups'){ nav.group=null; nav.subject=null; nav.sname=null; nav.sg=null; nav.ssub=null; renderGroups(nav.stage); }
+  else if(level==='subjects'){ nav.subject=null; nav.sname=null; nav.sg=null; nav.ssub=null; _renderSubjectList(nav.stage, nav.group||0); }
   else if(level==='types'){
-    const sub=nav.subject?state.subjects.find(function(x){return x.id===nav.subject;}):null;
+    const sid0=nav.subject||nav.ssub;
+    const sub=sid0?state.subjects.find(function(x){return x.id===sid0;}):null;
     const key=nav.sname || (sub?_subKey(sub.name):null);
-    nav.subject=null;
+    nav.subject=null; nav.sg=null; nav.ssub=null;
     if(key) renderSubjectTypes(nav.stage, nav.group||0, key); else navTo('subjects');
+  }
+  else if(level==='sgroups'){
+    const sid0=nav.subject||nav.ssub;
+    nav.subject=null; nav.sg=null;
+    if(sid0) _renderScopedGroups(sid0); else navTo('subjects');
   }
 }
 
@@ -3718,8 +3762,31 @@ function sortByNum(list){
     return an!==bn ? an-bn : (a.id||0)-(b.id||0);
   });
 }
+// ===== كروبات المواد: كروب لمرحلة + مادة محددة (نظري/عملي) بطلاب مختارين =====
+// يُخزَّن ضمن state.groups بحقلين إضافيين (subjectIds, studentIds) — الكروبات العامة وبيانات الطلاب لا تتغير
+function _isScoped(g){ return !!g && Array.isArray(g.subjectIds) && g.subjectIds.length>0; }
+function _scopedGroup(id){ if(!id) return null; const g=(state.groups||[]).find(function(x){return x.id===id;}); return _isScoped(g)?g:null; }
+function stageGroups(stageId){ return (state.groups||[]).filter(function(g){ return g.stageId===stageId && !_isScoped(g); }); }
+function _scopedGroupsFor(subjectId){ return (state.groups||[]).filter(function(g){ return _isScoped(g) && g.subjectIds.indexOf(subjectId)>=0; }); }
+function _sgMembers(g){ const set=new Set(g.studentIds||[]); return activeStudents().filter(function(st){ return st.stageId===g.stageId && set.has(st.id); }); }
+function _stInGroup(st,gid){ const sg=_scopedGroup(gid); if(sg) return st.stageId===sg.stageId && (sg.studentIds||[]).indexOf(st.id)>=0; return (st.groupId||0)===gid; }
 function groupStudents(stageId,groupId){
+  const sg=_scopedGroup(groupId);
+  if(sg){
+    return _sgMembers(sg).filter(function(st){ return st.stageId===stageId; }).sort(function(a,b){
+      return ((a.groupId||0)-(b.groupId||0)) || ((parseInt(a.num)||1e9)-(parseInt(b.num)||1e9)) || ((a.id||0)-(b.id||0));
+    });
+  }
   return sortByNum(activeStudents().filter(function(st){ return st.stageId===stageId && (st.groupId||0)===(groupId||0); }));
+}
+function _pruneScopedGroups(){
+  const ids=new Set((state.subjects||[]).map(function(s){return s.id;}));
+  state.groups=(state.groups||[]).filter(function(g){
+    if(!Array.isArray(g.subjectIds)) return true;
+    const keep=g.subjectIds.filter(function(i){return ids.has(i);});
+    if(keep.length!==g.subjectIds.length) g.subjectIds=keep;
+    return keep.length>0;
+  });
 }
 // إعطاء رقم لكل طالب ليس له رقم (يكمل بعد أكبر رقم موجود)
 function ensureNumbers(list){
@@ -3771,7 +3838,30 @@ let _attCtx = null;   // {subjectId, groupId, stageId, sessKey}
 let _attMethod = (function(){ try{ return localStorage.getItem('attMethod')||'name'; }catch(e){ return 'name'; } })();
 let _attPanel = 'current';
 
-function clickSubject(subjectId,groupId){ nav.subject=subjectId; _attPanel='current'; renderAttendance(subjectId,groupId); }
+function clickSubject(subjectId,groupId){
+  nav.sg=null; nav.ssub=null;
+  if(_scopedGroupsFor(subjectId).length){ _renderScopedGroups(subjectId); return; }   // للمادة كروبات مخصصة ← اختر الكروب أولاً
+  nav.subject=subjectId; _attPanel='current'; renderAttendance(subjectId,groupId);
+}
+function _renderScopedGroups(subjectId){
+  const subj=(state.subjects||[]).find(function(s){return s.id===subjectId;});
+  const sgs=_scopedGroupsFor(subjectId);
+  if(!subj || !sgs.length){ nav.ssub=null; nav.sg=null; nav.subject=subjectId; _attPanel='current'; renderAttendance(subjectId,nav.group||0); return; }
+  nav.ssub=subjectId; nav.subject=null; nav.sg=null; renderBreadcrumb();
+  const stageId=subj.stageId, assigned=new Set();
+  let html='<div class="cards-header"><div class="cards-title">'+esc(subj.name)+' <span>'+_TYPE_ICON[_stype(subj)]+' '+_TYPE_LBL[_stype(subj)]+' — اختر الكروب</span></div></div><div class="cards-grid">';
+  sgs.forEach(function(g,i){
+    const mem=groupStudents(stageId,g.id); mem.forEach(function(s){ assigned.add(s.id); });
+    const last=_lastRec([subjectId],g.id), lec=_lecCount(subjectId,g.id);
+    html+='<div class="card" onclick="clickScopedGroup('+subjectId+','+g.id+')"><div class="card-icon">👥</div><div class="card-name">'+esc(g.name)+'</div>'
+      +'<div class="card-meta">'+mem.length+' طالب · '+(lec?lec+' محاضرة · آخر تسجيل: '+esc(last.date||''):'لم يُسجَّل بعد')+'</div><div class="card-accent color-'+((i+2)%5)+'"></div></div>';
+  });
+  html+='</div>';
+  const rest=activeStudents().filter(function(s){ return s.stageId===stageId && !assigned.has(s.id); }).length;
+  if(rest>0) html+='<div class="muted-p" style="margin-top:14px">ℹ️ '+rest+' طالب من هذه المرحلة غير مضافين لأي كروب في هذه المادة</div>';
+  document.getElementById('content-area').innerHTML=html;
+}
+function clickScopedGroup(subjectId,gid){ nav.sg=gid; nav.ssub=null; nav.subject=subjectId; _attPanel='current'; renderAttendance(subjectId,gid); }
 
 function renderAttendance(subjectId,groupId){
   renderBreadcrumb();
@@ -3780,7 +3870,11 @@ function renderAttendance(subjectId,groupId){
   const group=(state.groups||[]).find(function(g){return g.id===groupId;});
   const stage=(state.stages||[]).find(function(s){return s.id===stageId;});
   const students=groupStudents(stageId,groupId);
-  if(ensureNumbers(students)) save();
+  if(_scopedGroup(groupId)){
+    let _ch=false;
+    [...new Set(students.map(function(s){return s.groupId||0;}))].forEach(function(g0){ if(ensureNumbers(groupStudents(stageId,g0))) _ch=true; });
+    if(_ch) save();
+  } else if(ensureNumbers(students)) save();
   const sessKey=subjectId+'-'+groupId;
   _attCtx={subjectId:subjectId, groupId:groupId, stageId:stageId, sessKey:sessKey};
   const act=getActiveSession(sessKey);
@@ -4033,7 +4127,9 @@ function numQuickMark(status){
   if(!inp) return;
   const n=parseInt(toLatinDigits(inp.value).trim());
   if(!n){ if(fb){ fb.className='num-feedback err'; fb.textContent='⚠️ اكتب رقماً صحيحاً'; } inp.focus(); return; }
-  const st=groupStudents(c.stageId,c.groupId).find(function(s){ return parseInt(s.num)===n; });
+  const hits=groupStudents(c.stageId,c.groupId).filter(function(s){ return parseInt(s.num)===n; });
+  if(hits.length>1 && _scopedGroup(c.groupId)){ if(fb){ fb.className='num-feedback err'; fb.textContent='⚠️ الرقم '+n+' مكرر في هذا الكروب (من كروبات مختلفة) — اضغط مربع الطالب مباشرة'; } inp.select(); return; }
+  const st=hits[0];
   if(!st){
     if(fb){ fb.className='num-feedback err'; fb.textContent='⚠️ لا يوجد طالب بالرقم '+n; }
     inp.select(); return;
@@ -4196,7 +4292,7 @@ function saveAttendance(subjectId,groupId,opts){
     toast('✅ تم الحفظ والإرسال ('+count+' طالب) — التعديل متاح 15 دقيقة');
   }
   if(typeof _clearScanTimer==='function') _clearScanTimer(sessKey);
-  if(currentTab==='stages' && nav.subject===subjectId && nav.group===groupId) setTimeout(function(){ renderAttendance(subjectId,groupId); },150);
+  if(currentTab==='stages' && nav.subject===subjectId && (nav.sg||nav.group)===groupId) setTimeout(function(){ renderAttendance(subjectId,groupId); },150);
 }
 function _scheduleEditExpiry(sessKey,delayMs){
   if(window._editTimers[sessKey]) clearTimeout(window._editTimers[sessKey]);
@@ -4208,7 +4304,7 @@ function _expireSession(sessKey){
   delete window._sessionAtt[sessKey];     // الجلسة التالية تبدأ نظيفة
   delete window._editTimers[sessKey];
   saveActiveSessions();
-  if(currentTab==='stages' && nav.subject===subId && nav.group===grpId) renderAttendance(subId,grpId);
+  if(currentTab==='stages' && nav.subject===subId && (nav.sg||nav.group)===grpId) renderAttendance(subId,grpId);
 }
 function changeAttRecord(recordId,newStatus,subjectId,groupId){
   const rec=(state.attendance||[]).find(function(r){return r.id===recordId;});
@@ -4222,6 +4318,7 @@ function changeAttRecord(recordId,newStatus,subjectId,groupId){
 }
 
 function addStudentToGroup(stageId,groupId){
+  if(_scopedGroup(groupId)){ _sgAddMembers(stageId,groupId); return; }
   openModal('➕ إضافة طالب',
     '<div class="seg" style="margin-bottom:16px">'
       +'<button id="tab-single" class="active" onclick="_switchAddTab(\'single\')">طالب واحد</button>'
@@ -4336,6 +4433,138 @@ function _accToggle(id){
 function _stageName(id){ const s=(state.stages||[]).find(function(x){return x.id===id;}); return s?s.name:''; }
 function _groupName(id){ if(!id) return 'بدون كروب'; const g=(state.groups||[]).find(function(x){return x.id===id;}); return g?g.name:'—'; }
 
+// ===== إدارة كروبات المواد (من الإعدادات ← إدارة الكروبات) =====
+let _sgEditId=null;
+function _sgSettingsItem(g){
+  const subs=(g.subjectIds||[]).map(function(id){ return (state.subjects||[]).find(function(s){return s.id===id;}); }).filter(Boolean)
+    .map(function(s){ return esc(s.name)+' '+_TYPE_ICON[_stype(s)]+' '+_TYPE_LBL[_stype(s)]; }).join('، ');
+  return '<div class="settings-item"><div><div class="si-info">'+esc(g.name)+' <span class="sg-badge">🎯 كروب مادة</span></div>'
+    +'<div class="si-meta">'+esc(_stageName(g.stageId))+' · '+_sgMembers(g).length+' طالب</div><div class="si-meta">'+subs+'</div></div>'
+    +'<div class="si-actions"><button class="si-btn si-edit" onclick="editGroup('+g.id+')">✏️</button><button class="si-btn si-del" onclick="deleteGroup('+g.id+')">🗑️</button></div></div>';
+}
+function _sgSorted(list){
+  return list.slice().sort(function(a,b){ return ((a.groupId||0)-(b.groupId||0)) || ((parseInt(a.num)||1e9)-(parseInt(b.num)||1e9)) || ((a.id||0)-(b.id||0)); });
+}
+function _sgStuRows(stageId,list,checked){
+  const showG=stageGroups(stageId).length>0;
+  return list.map(function(st){
+    return '<label class="sg-row" data-q="'+esc(String(st.name).toLowerCase())+' '+esc(String(st.num||''))+'"><input type="checkbox" data-id="'+st.id+'"'+(checked&&checked.has(st.id)?' checked':'')+' onchange="_sgUpdCount()">'
+      +'<span class="st-num sm">'+esc(st.num||'–')+'</span><span class="sg-nm">'+esc(st.name)+(showG?'<small>'+esc(_groupName(st.groupId))+'</small>':'')+'</span></label>';
+  }).join('');
+}
+function _sgFilter(){
+  const q=toLatinDigits((document.getElementById('sgf-q')||{}).value||'').trim().toLowerCase();
+  document.querySelectorAll('#sgf-stu .sg-row').forEach(function(r){ r.style.display=(!q || (r.dataset.q||'').indexOf(q)>=0)?'':'none'; });
+}
+function _sgAll(on){
+  document.querySelectorAll('#sgf-stu .sg-row').forEach(function(r){ if(r.style.display==='none') return; const c=r.querySelector('input'); if(c) c.checked=on; });
+  _sgUpdCount();
+}
+function _sgUpdCount(){ const el=document.getElementById('sgf-cnt'); if(el) el.textContent=document.querySelectorAll('#sgf-stu input:checked').length; }
+// الطالب لا يكون في كروبين لنفس المادة
+function _sgConflicts(stageId,subjectIds,studentIds,selfId){
+  const out=[], mine=new Set(studentIds);
+  (state.groups||[]).forEach(function(g){
+    if(!_isScoped(g) || g.id===selfId || g.stageId!==stageId) return;
+    if(!g.subjectIds.some(function(i){return subjectIds.indexOf(i)>=0;})) return;
+    (g.studentIds||[]).forEach(function(id){
+      if(!mine.has(id)) return;
+      const st=(state.students||[]).find(function(s){return s.id===id;});
+      if(st && !st.graduated && st.stageId===stageId) out.push({st:st,g:g});
+    });
+  });
+  return out;
+}
+function _sgConflictMsg(bad){ return '⚠️ '+bad[0].st.name+(bad.length>1?(' و'+(bad.length-1)+' آخرين'):'')+' موجود في كروب "'+bad[0].g.name+'" لنفس المادة — لا يمكن أن يكون الطالب في كروبين لنفس المادة'; }
+
+function addScopedGroup(){
+  requireDeleteCode('🔒 إضافة كروب','إضافة كروب جديد تحتاج <b>الرمز الذي يحدده المعاون</b>.',function(){ _sgOpenForm(null); },'🔓 متابعة',{label:'🔑 رمز المعاون',noConfirm:true,btnStyle:'background:var(--btn-blue)'});
+}
+function _sgOpenForm(id){
+  const g=id?_scopedGroup(id):null;
+  if(id && !g){ toast('الكروب غير موجود','e'); return; }
+  const stages=orderedStages();
+  if(!g && !stages.length){ toast('أضف مرحلة أولاً','e'); return; }
+  _sgEditId=g?g.id:null;
+  const stageOpts=g ? '<option value="'+g.stageId+'">'+esc(_stageName(g.stageId))+'</option>'
+    : '<option value="">— اختر المرحلة —</option>'+stages.map(function(s){return '<option value="'+s.id+'">'+esc(s.name)+'</option>';}).join('');
+  const body='<div class="form-group"><label class="form-label">اسم الكروب</label><input class="form-input" id="sgf-name" placeholder="مثال: كروب 1" value="'+esc(g?g.name:'')+'"></div>'
+    +'<div class="form-group"><label class="form-label">المرحلة</label><select class="form-select" id="sgf-stage" onchange="_sgFillStage(parseInt(this.value)||0,null)"'+(g?' disabled':'')+'>'+stageOpts+'</select></div>'
+    +'<div class="form-group"><label class="form-label">المواد ونوعها (نظري / عملي)</label><div id="sgf-subj" class="sg-box"></div></div>'
+    +'<div class="form-group"><label class="form-label">الطلاب (<span id="sgf-cnt">0</span> محدد)</label><div id="sgf-stu-wrap"></div></div>';
+  openModal(g?'✏️ تعديل كروب مادة':'➕ إضافة كروب لمادة محددة',body,_sgSave,'حفظ');
+  document.getElementById('modalOverlay').classList.add('wide');
+  _sgFillStage(g?g.stageId:0,g);
+}
+function _sgFillStage(stageId,g){
+  const sb=document.getElementById('sgf-subj'), wrap=document.getElementById('sgf-stu-wrap');
+  if(!sb || !wrap) return;
+  if(!stageId){ sb.innerHTML='<div class="muted-p">اختر المرحلة أولاً</div>'; wrap.innerHTML='<div class="muted-p">اختر المرحلة أولاً</div>'; return; }
+  const sel=new Set(g?g.subjectIds:[]), sgp=subjectGroups(stageId);
+  sb.innerHTML=sgp.length ? sgp.map(function(sp){
+    const cnt={};
+    return '<div class="sg-subj"><b>'+esc(sp.name)+'</b><span class="sg-types">'+sp.items.map(function(s){
+      const t=_stype(s); cnt[t]=(cnt[t]||0)+1; const n=sp.items.filter(function(x){return _stype(x)===t;}).length;
+      return '<label class="sg-chk"><input type="checkbox" data-id="'+s.id+'"'+(sel.has(s.id)?' checked':'')+'> '+_TYPE_ICON[t]+' '+_TYPE_LBL[t]+(n>1?' '+cnt[t]:'')+'</label>';
+    }).join('')+'</span></div>';
+  }).join('') : '<div class="muted-p">لا توجد مواد في هذه المرحلة — أضف المواد أولاً</div>';
+  const list=_sgSorted(activeStudents().filter(function(s){return s.stageId===stageId;}));
+  const chosen=new Set(g?(g.studentIds||[]):[]);
+  wrap.innerHTML=list.length
+    ? '<div class="sg-tools"><input class="search-input" id="sgf-q" placeholder="🔍 الاسم أو الرقم..." oninput="_sgFilter()"><button type="button" class="tool-btn" onclick="_sgAll(true)">✔ تحديد الكل</button><button type="button" class="tool-btn" onclick="_sgAll(false)">✖ إلغاء</button></div><div id="sgf-stu" class="sg-box tall">'+_sgStuRows(stageId,list,chosen)+'</div>'
+    : '<div class="muted-p">لا يوجد طلاب في هذه المرحلة</div>';
+  _sgUpdCount();
+}
+function _sgSave(){
+  const name=(document.getElementById('sgf-name').value||'').trim().replace(/\s+/g,' ');
+  const cur=_sgEditId?_scopedGroup(_sgEditId):null;
+  if(_sgEditId && !cur){ toast('الكروب لم يعد موجوداً','e'); closeModal(); return; }
+  const stageId=cur ? cur.stageId : (parseInt(document.getElementById('sgf-stage').value)||0);
+  if(!name){ toast('أدخل اسم الكروب','e'); return; }
+  if(!stageId){ toast('اختر المرحلة','e'); return; }
+  const subjectIds=[...document.querySelectorAll('#sgf-subj input:checked')].map(function(i){return parseInt(i.dataset.id);});
+  if(!subjectIds.length){ toast('حدد مادة واحدة على الأقل (نظري أو عملي)','e'); return; }
+  const studentIds=[...document.querySelectorAll('#sgf-stu input:checked')].map(function(i){return parseInt(i.dataset.id);});
+  const bad=_sgConflicts(stageId,subjectIds,studentIds,_sgEditId);
+  if(bad.length){ toast(_sgConflictMsg(bad),'e'); return; }
+  const nk=_subKey(name);
+  if((state.groups||[]).some(function(g){ return _isScoped(g)&&g.id!==_sgEditId&&g.stageId===stageId&&_subKey(g.name)===nk&&g.subjectIds.some(function(i){return subjectIds.indexOf(i)>=0;}); })){ toast('يوجد كروب بنفس الاسم لنفس المادة','e'); return; }
+  if(cur){
+    cur.name=name; cur.subjectIds=subjectIds;
+    if(studentIds.length) cur.studentIds=studentIds; else delete cur.studentIds;
+  } else {
+    if(!state.groups) state.groups=[];
+    const ng={id:nextId(),stageId:stageId,name:name,subjectIds:subjectIds};
+    if(studentIds.length) ng.studentIds=studentIds;
+    state.groups.push(ng);
+  }
+  const wasEdit=!!cur;
+  _sgEditId=null; _accOpen.add('groups');
+  save(); closeModal(); renderSettings();
+  toast(wasEdit?'تم حفظ التعديل ✅':'تمت إضافة الكروب ✅');
+}
+// إضافة طلاب لكروب مادة من شاشة الحضور
+function _sgAddMembers(stageId,gid){
+  const g=_scopedGroup(gid); if(!g) return;
+  const have=new Set(g.studentIds||[]);
+  const list=_sgSorted(activeStudents().filter(function(s){return s.stageId===stageId && !have.has(s.id);}));
+  if(!list.length){ toast('كل طلبة المرحلة مضافون إلى هذا الكروب','i'); return; }
+  openModal('➕ إضافة طلاب إلى «'+g.name+'»',
+    '<div class="sg-tools"><input class="search-input" id="sgf-q" placeholder="🔍 الاسم أو الرقم..." oninput="_sgFilter()"><button type="button" class="tool-btn" onclick="_sgAll(true)">✔ تحديد الكل</button></div>'
+    +'<div id="sgf-stu" class="sg-box tall">'+_sgStuRows(stageId,list,null)+'</div><div class="muted-p" style="margin-top:8px"><span id="sgf-cnt">0</span> طالب محدد</div>',
+    function(){
+      const ids=[...document.querySelectorAll('#sgf-stu input:checked')].map(function(i){return parseInt(i.dataset.id);});
+      if(!ids.length){ toast('حدد طالباً واحداً على الأقل','e'); return; }
+      const bad=_sgConflicts(stageId,g.subjectIds,ids,g.id);
+      if(bad.length){ toast(_sgConflictMsg(bad),'e'); return; }
+      g.studentIds=(g.studentIds||[]).concat(ids);
+      save(); closeModal();
+      if(nav.subject) renderAttendance(nav.subject,gid);
+      toast('تمت إضافة '+ids.length+' طالب إلى الكروب ✅');
+    },'إضافة');
+  document.getElementById('modalOverlay').classList.add('wide');
+}
+
 function renderSettings(){
   const stages=state.stages||[], groups=state.groups||[], subjects=state.subjects||[];
   const students=activeStudents();
@@ -4354,9 +4583,10 @@ function renderSettings(){
   });
   stagesHTML+='</div>';
 
-  let groupsHTML='<div class="settings-list">';
+  let groupsHTML='<button class="tool-btn wide" onclick="addScopedGroup()">＋ إضافة كروب لمرحلة ومادة محددة</button><div class="settings-list">';
   if(!groups.length) groupsHTML+='<p class="muted-p">لا توجد كروبات.</p>';
   groups.forEach(function(g){
+    if(_isScoped(g)){ groupsHTML+=_sgSettingsItem(g); return; }
     groupsHTML+='<div class="settings-item"><div><div class="si-info">'+esc(g.name)+'</div><div class="si-meta">'+esc(_stageName(g.stageId))+' · '+students.filter(function(st){return st.groupId===g.id;}).length+' طالب</div></div>'
       +'<div class="si-actions"><button class="si-btn si-edit" onclick="editGroup('+g.id+')">✏️</button><button class="si-btn si-del" onclick="deleteGroup('+g.id+')">🗑️</button></div></div>';
   });
@@ -4429,7 +4659,7 @@ function filterSettingsStudents(rebuildGroups){
   if(!stEl) return;
   _stFilter.stage=stEl.value;
   if(rebuildGroups || grEl.options.length===0){
-    const gs=(state.groups||[]).filter(function(g){return !_stFilter.stage || String(g.stageId)===_stFilter.stage;});
+    const gs=(state.groups||[]).filter(function(g){return !_isScoped(g) && (!_stFilter.stage || String(g.stageId)===_stFilter.stage);});
     let opts='<option value="">كل الكروبات</option>'+gs.map(function(g){return '<option value="'+g.id+'">'+esc(g.name)+(_stFilter.stage?'':' — '+esc(_stageName(g.stageId)))+'</option>';}).join('');
     if(_stFilter.stage && !gs.length) opts='<option value="">بدون كروبات</option>';
     grEl.innerHTML=opts;
@@ -4557,7 +4787,7 @@ function _promoStatus(){
 }
 function _allPromoted(){ return _promoStatus().every(function(x){ return x.status==='done' || x.status==='empty'; }); }
 function _validGroup(stageId,g){
-  const gs=(state.groups||[]).filter(function(x){return x.stageId===stageId;});
+  const gs=stageGroups(stageId);
   if(!gs.length) return 0;
   return gs.some(function(x){return x.id===g;}) ? g : gs[0].id;
 }
@@ -4587,7 +4817,7 @@ function openPromoteModal(stageId){
   if(!isGrad){
     const inTarget=_stageCount(next.id);
     if(inTarget) html+='<div class="info-box" style="margin-top:10px">ℹ️ في "'+esc(next.name)+'" حالياً '+inTarget+' طالب باقٍ (راسب) — سيُضاف المرحَّلون إليهم.</div>';
-    const tGroups=(state.groups||[]).filter(function(g){return g.stageId===next.id;});
+    const tGroups=stageGroups(next.id);
     const srcG=[...new Set(list.map(function(s){return s.groupId||0;}))];
     html+='<div class="promo-sec-title">الكروب في المرحلة الجديدة</div><div class="map-list">';
     srcG.forEach(function(sg,i){
@@ -4806,7 +5036,7 @@ function _pvEntryHTML(key,e){
   let act='';
   if(!st) act='<span class="ad-muted">الطالب محذوف</span>';
   else if(e.res==='up'){
-    const gs=(state.groups||[]).filter(function(g){return g.stageId===e.ts;});
+    const gs=stageGroups(e.ts);
     if(gs.length>1) act+='<select class="pv-gsel" onchange="pvEntryGroup(\''+key+'\',this.value)">'+gs.map(function(g){return '<option value="'+g.id+'"'+(g.id===(st.groupId||0)?' selected':'')+'>'+esc(g.name)+'</option>';}).join('')+'</select>';
     act+='<button class="pv-act red" onclick="pvEntryAction(\''+key+'\',\'back\')">↩️ إرجاع (راسب)</button>';
   }
@@ -4994,7 +5224,7 @@ function pvFinishYear(){
 function deleteSubjectFromSettings(id){ deleteSubject(id); }
 function _editStGroups(selGroup){
   const stageId=parseInt(document.getElementById('inp-stage').value);
-  const gs=(state.groups||[]).filter(function(g){return g.stageId===stageId;});
+  const gs=stageGroups(stageId);
   const el=document.getElementById('inp-group');
   el.innerHTML=gs.length ? gs.map(function(g){return '<option value="'+g.id+'"'+(g.id===selGroup?' selected':'')+'>'+esc(g.name)+'</option>';}).join('') : '<option value="0">بدون كروب</option>';
 }
@@ -5489,7 +5719,7 @@ function _impPlan(){
     const inList=new Set(list.map(function(x){return _impNorm(x[1]);}));
     const add=list.filter(function(x){ return !have.has(_impNorm(x[1])); });
     const others=cur.filter(function(s){ return !inList.has(_impNorm(s.name)); }).length;
-    const groups=st ? (state.groups||[]).filter(function(g){return g.stageId===st.id;}) : [];
+    const groups=st ? stageGroups(st.id) : [];
     return {lvl:lvl, list:list, stage:st, add:add, dup:list.length-add.length, others:others, groups:groups};
   });
 }
@@ -5885,7 +6115,7 @@ function buildArchiveAndSave(){
     let P=0,A=0,L=0; ss.forEach(function(x){ P+=x.p.length; A+=x.a.length; L+=x.l.length; });
     const nCols=Math.max(13, 4+subs.length+5);
     const sh=new XL.Sheet(nCols);
-    sh.banner(stage.name+' — أرشيف السنة الدراسية '+year, 'كلية طب الأسنان — جامعة ذي قار · الكروبات: '+((state.groups||[]).filter(function(g){return g.stageId===stage.id;}).map(function(g){return g.name;}).join('، ')||'بدون كروبات'), col);
+    sh.banner(stage.name+' — أرشيف السنة الدراسية '+year, 'كلية طب الأسنان — جامعة ذي قار · الكروبات: '+(stageGroups(stage.id).map(function(g){return g.name;}).join('، ')||'بدون كروبات'), col);
     sh.stats([['الطلبة',ids.length,col],['المواد',subs.length,C.slate],['المحاضرات',ss.length,C.sky],['حضور',P,C.p],['غياب',A,C.a],['مجاز',L,C.l]]);
     // المواد
     sh.section('📖 المواد الدراسية', col);
@@ -6043,7 +6273,7 @@ function adScopeStudents(ix, agg){
     ix.st.forEach(function(s){
       if(s.graduated) return;
       if(stage && s.stageId!==stage) return;
-      if(group!==null && (s.groupId||0)!==group) return;
+      if(group!==null && !_stInGroup(s,group)) return;
       if(q && String(s.name).toLowerCase().indexOf(q)<0 && String(s.num||'')!==q) return;
       if(!_adWarnOk(ix,s.id)) return;
       ids.add(s.id);
@@ -6159,12 +6389,14 @@ function adHomeHTML(ix,recs,agg){
   ];
   let h='<div class="ad-kpis">'+kpis.map(function(k){ return '<div class="ad-kpi" style="--c:'+k[3]+'"><i>'+k[0]+'</i><b style="color:'+k[3]+'">'+k[1]+'</b><span>'+k[2]+'</span></div>'; }).join('')+'</div>';
   // المراحل أو كروبات المرحلة
-  const units = sid ? (state.groups||[]).filter(function(g){return g.stageId===sid;}).map(function(g){return {id:g.id, name:g.name, kind:'g'};})
+  const units = sid ? stageGroups(sid).map(function(g){return {id:g.id, name:g.name, kind:'g'};})
                     : orderedStages().map(function(s){return {id:s.id, name:s.name, kind:'s'};});
   if(sid && !units.length) units.push({id:0, name:'بدون كروب', kind:'g'});
+  if(sid) (state.groups||[]).forEach(function(g){ if(g.stageId===sid && _isScoped(g)) units.push({id:g.id, name:g.name+' (كروب مادة)', kind:'g'}); });
   const u={}; units.forEach(function(x){ u[x.id]={p:0,a:0,l:0,ss:new Set(),n:0}; });
   agg.sess.forEach(function(s){ const id=sid?s.groupId:s.stageId; const x=u[id]; if(!x) return; x.p+=s.p; x.a+=s.a; x.l+=s.l; x.ss.add(s.sk); });
   scope.forEach(function(s){ const id=sid?(s.groupId||0):s.stageId; if(u[id]) u[id].n++; });
+  units.forEach(function(x){ const sg=x.kind==='g'?_scopedGroup(x.id):null; if(sg && u[x.id]) u[x.id].n=_sgMembers(sg).length; });
   h+='<div class="ad-card"><div class="ad-card-h"><h3>'+(sid?'👥 كروبات '+esc(_stageName(sid)):'🎓 المراحل الدراسية')+'</h3><span class="ad-muted">اضغط للتفاصيل</span></div><div class="ad-stage-list">';
   if(!units.length) h+=_adEmpty('🎓','لا توجد مراحل بعد');
   units.forEach(function(x){
@@ -6249,7 +6481,7 @@ function adWarnPairs(ix){
     const p=k.split('_'), st=ix.st.get(+p[0]), sb=ix.sb.get(+p[1]);
     if(!st || st.graduated) return;
     if(sid && (sb?sb.stageId:st.stageId)!==sid) return;
-    if(gid!==null && (st.groupId||0)!==gid) return;
+    if(gid!==null && !_stInGroup(st,gid)) return;
     if(sub && +p[1]!==sub) return;
     if(f.type && ((sb&&sb.type)||'theoretical')!==f.type) return;
     if(q && String(st.name).toLowerCase().indexOf(q)<0 && String(st.num||'')!==q) return;
