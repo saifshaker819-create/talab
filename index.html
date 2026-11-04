@@ -889,6 +889,14 @@ body:not(.light-mode) .wb-3{color:#fca5a5}
 .st-stage-h:first-child{margin-top:0}
 .st-stage-h b{font-size:15px}
 .st-stage-n{font-size:12.5px;font-weight:800;color:var(--accent);background:var(--bg2);padding:2px 10px;border-radius:20px}
+.st-group-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 8px 0;padding:7px 12px;border-radius:10px;background:var(--glass2);border:1px solid var(--border2)}
+.st-group-h b{font-size:13.5px}
+.st-group-n{font-size:12px;font-weight:800;color:var(--text2);background:var(--bg2);padding:1px 9px;border-radius:20px}
+.st-group-h.unsorted{background:rgba(251,191,36,.10);border:1.5px dashed rgba(251,191,36,.55)}
+.st-group-h.unsorted b{color:var(--accent4)}
+.st-unsorted-tag{color:var(--accent4);font-weight:700}
+.student-si.in-grp{margin-inline-start:10px}
+.st-quick{padding:6px 8px;font-size:12px;width:auto;max-width:120px;min-width:0}
 .si-left{display:flex;align-items:center;gap:10px;min-width:0}
 .si-left>div{min-width:0}
 .bc-code{color:var(--accent);font-weight:700}
@@ -4600,11 +4608,16 @@ function renderSettings(){
   });
   subjHTML+='</div>';
 
-  // ترتيب الطلبة: المرحلة ← الكروب ← الرقم
+  // ترتيب الطلبة: المرحلة ← الكروب (غير المفروزين أولاً) ← الرقم
   const stageIdx={}; orderedStages().forEach(function(s,i){stageIdx[s.id]=i;});
-  const cntBy={}; students.forEach(function(s){ cntBy[s.stageId]=(cntBy[s.stageId]||0)+1; });
+  const _stGrps={}; stages.forEach(function(s){ _stGrps[s.id]=stageGroups(s.id); });
+  // الكروب الفعلي للطالب: إن كانت المرحلة فيها كروبات وكروبه غير موجود فيها → 0 (غير مفروز)
+  function effGroup(st){ return (_stGrps[st.stageId]||[]).some(function(g){return g.id===st.groupId;}) ? st.groupId : 0; }
+  function grpOrd(st){ const gs=_stGrps[st.stageId]||[]; if(!gs.length) return 0; const e=effGroup(st); if(!e) return 0; return gs.findIndex(function(g){return g.id===e;})+1; }
+  const cntBy={}, gCnt={};
+  students.forEach(function(s){ cntBy[s.stageId]=(cntBy[s.stageId]||0)+1; const k=s.stageId+'_'+effGroup(s); gCnt[k]=(gCnt[k]||0)+1; });
   const sortedSt=students.slice().sort(function(a,b){
-    return ((stageIdx[a.stageId]||0)-(stageIdx[b.stageId]||0)) || ((a.groupId||0)-(b.groupId||0)) || ((parseInt(a.num)||1e9)-(parseInt(b.num)||1e9));
+    return ((stageIdx[a.stageId]||0)-(stageIdx[b.stageId]||0)) || (grpOrd(a)-grpOrd(b)) || ((parseInt(a.num)||1e9)-(parseInt(b.num)||1e9)) || ((a.id||0)-(b.id||0));
   });
   const studentsHTML=
     '<div class="st-filters">'
@@ -4616,10 +4629,19 @@ function renderSettings(){
     +'<button class="tool-btn wide" onclick="downloadFilteredBarcodes()">⬇️ تنزيل باركودات الطلاب الظاهرين</button>'
     +'<div class="st-count" id="st-count"></div>'
     +'<div class="settings-list" id="students-settings-list">'+sortedSt.map(function(st,i){
-      const hd=(i===0||sortedSt[i-1].stageId!==st.stageId)?'<div class="st-stage-h" data-stage="'+st.stageId+'"><b>🎓 '+esc(_stageName(st.stageId)||'بدون مرحلة')+'</b><span class="st-stage-n">'+(cntBy[st.stageId]||0)+' طالب</span></div>':'';
-      return hd+'<div class="settings-item student-si" data-stage="'+st.stageId+'" data-group="'+(st.groupId||0)+'" data-q="'+esc(String(st.name).toLowerCase())+' '+(st.num||'')+'">'
-        +'<div class="si-left"><span class="st-num sm">'+(st.num||'–')+'</span><div><div class="si-info">'+esc(st.name)+'</div><div class="si-meta">'+esc(_stageName(st.stageId))+' · '+esc(_groupName(st.groupId))+' · <span class="bc-code">'+esc(st.barcode||'')+'</span></div></div></div>'
-        +'<div class="si-actions"><button class="student-barcode-btn" onclick="openBarcodeModal('+st.id+')">🔲</button><button class="si-btn si-edit" onclick="editStudentSettings('+st.id+')">✏️</button><button class="si-btn si-del" onclick="deleteStudentSettings('+st.id+')">🗑️</button></div></div>';
+      const prev=i?sortedSt[i-1]:null;
+      const gs=_stGrps[st.stageId]||[], hasG=gs.length>0, eg=effGroup(st);
+      const newStage=(!prev||prev.stageId!==st.stageId);
+      let hd=newStage?'<div class="st-stage-h" data-stage="'+st.stageId+'"><b>🎓 '+esc(_stageName(st.stageId)||'بدون مرحلة')+'</b><span class="st-stage-n">'+(cntBy[st.stageId]||0)+' طالب</span></div>':'';
+      // عنوان فرعي للكروب داخل المرحلة (فقط إن كان للمرحلة كروبات)
+      if(hasG && (newStage || effGroup(prev)!==eg)){
+        hd+='<div class="st-group-h'+(eg?'':' unsorted')+'" data-stage="'+st.stageId+'" data-group="'+eg+'"><b>'+(eg?'👥 '+esc(_groupName(eg)):'⏳ غير مفروز — يحتاج إلى كروب')+'</b><span class="st-group-n">'+(gCnt[st.stageId+'_'+eg]||0)+' طالب</span></div>';
+      }
+      const grpTxt=(hasG&&!eg)?'<span class="st-unsorted-tag">⏳ غير مفروز</span>':esc(_groupName(eg));
+      const quick=(hasG&&!eg)?'<select class="form-select st-quick" onchange="quickAssignGroup('+st.id+',this.value)"><option value="">فرز إلى…</option>'+gs.map(function(g){return '<option value="'+g.id+'">'+esc(g.name)+'</option>';}).join('')+'</select>':'';
+      return hd+'<div class="settings-item student-si'+(hasG?' in-grp':'')+'" data-stage="'+st.stageId+'" data-group="'+eg+'" data-q="'+esc(String(st.name).toLowerCase())+' '+(st.num||'')+'">'
+        +'<div class="si-left"><span class="st-num sm">'+(st.num||'–')+'</span><div><div class="si-info">'+esc(st.name)+'</div><div class="si-meta">'+esc(_stageName(st.stageId))+' · '+grpTxt+' · <span class="bc-code">'+esc(st.barcode||'')+'</span></div></div></div>'
+        +'<div class="si-actions">'+quick+'<button class="student-barcode-btn" onclick="openBarcodeModal('+st.id+')">🔲</button><button class="si-btn si-edit" onclick="editStudentSettings('+st.id+')">✏️</button><button class="si-btn si-del" onclick="deleteStudentSettings('+st.id+')">🗑️</button></div></div>';
     }).join('')+'</div>';
 
 
@@ -4660,7 +4682,7 @@ function filterSettingsStudents(rebuildGroups){
   _stFilter.stage=stEl.value;
   if(rebuildGroups || grEl.options.length===0){
     const gs=(state.groups||[]).filter(function(g){return !_isScoped(g) && (!_stFilter.stage || String(g.stageId)===_stFilter.stage);});
-    let opts='<option value="">كل الكروبات</option>'+gs.map(function(g){return '<option value="'+g.id+'">'+esc(g.name)+(_stFilter.stage?'':' — '+esc(_stageName(g.stageId)))+'</option>';}).join('');
+    let opts='<option value="">كل الكروبات</option>'+(_stFilter.stage&&gs.length?'<option value="0">⏳ غير مفروز</option>':'')+gs.map(function(g){return '<option value="'+g.id+'">'+esc(g.name)+(_stFilter.stage?'':' — '+esc(_stageName(g.stageId)))+'</option>';}).join('');
     if(_stFilter.stage && !gs.length) opts='<option value="">بدون كروبات</option>';
     grEl.innerHTML=opts;
     if(_stFilter.group && [...grEl.options].some(function(o){return o.value===_stFilter.group;})) grEl.value=_stFilter.group;
@@ -4675,8 +4697,10 @@ function filterSettingsStudents(rebuildGroups){
   });
   const cnt=document.getElementById('st-count'); if(cnt) cnt.textContent='عدد الظاهرين: '+shown;
   // عنوان كل مرحلة: عدد الظاهرين منها، ويختفي إذا لم يظهر منها أحد
-  const vis={};
-  document.querySelectorAll('.student-si').forEach(function(el){ if(el.style.display!=='none') vis[el.dataset.stage]=(vis[el.dataset.stage]||0)+1; });
+  const vis={}, visG={};
+  document.querySelectorAll('.student-si').forEach(function(el){ if(el.style.display!=='none'){ vis[el.dataset.stage]=(vis[el.dataset.stage]||0)+1; const gk=el.dataset.stage+'_'+el.dataset.group; visG[gk]=(visG[gk]||0)+1; } });
+  // عنوان كل كروب داخل المرحلة: عدد الظاهرين، ويختفي إذا لم يظهر منه أحد
+  document.querySelectorAll('.st-group-h').forEach(function(h){ const n=visG[h.dataset.stage+'_'+h.dataset.group]||0; h.style.display=n?'':'none'; const t=h.querySelector('.st-group-n'); if(t) t.textContent=n+' طالب'; });
   document.querySelectorAll('.st-stage-h').forEach(function(h){ const n=vis[h.dataset.stage]||0; h.style.display=n?'':'none'; const t=h.querySelector('.st-stage-n'); if(t) t.textContent=n+' طالب'; });
   // أداة الترقيم (الترحيل والتخرّج من لوحة المعاون فقط)
   const bar=document.getElementById('st-stage-actions'); if(!bar) return;
@@ -5226,7 +5250,11 @@ function _editStGroups(selGroup){
   const stageId=parseInt(document.getElementById('inp-stage').value);
   const gs=stageGroups(stageId);
   const el=document.getElementById('inp-group');
-  el.innerHTML=gs.length ? gs.map(function(g){return '<option value="'+g.id+'"'+(g.id===selGroup?' selected':'')+'>'+esc(g.name)+'</option>';}).join('') : '<option value="0">بدون كروب</option>';
+  if(!gs.length){ el.innerHTML='<option value="0">بدون كروب</option>'; return; }
+  // المرحلة فيها كروبات: خيار «غير مفروز» يظهر أولاً ويُختار تلقائياً إن لم يكن للطالب كروب صالح
+  const has=gs.some(function(g){return g.id===selGroup;});
+  el.innerHTML='<option value="0"'+(has?'':' selected')+'>⏳ غير مفروز (بدون كروب)</option>'
+    +gs.map(function(g){return '<option value="'+g.id+'"'+(g.id===selGroup?' selected':'')+'>'+esc(g.name)+'</option>';}).join('');
 }
 function editStudentSettings(id){
   const st=state.students.find(function(x){return x.id===id;}); if(!st) return;
@@ -5250,7 +5278,8 @@ function editStudentSettings(id){
       const apply=function(){
         if(other) other.num = moved ? nextNumFor(stageId,groupId) : st.num;
         st.name=name; st.stageId=stageId; st.groupId=groupId; st.num=num;
-        save(); closeModal(); _afterDelete(); toast('تم التعديل');
+        save(); closeModal(); _afterDelete();
+        toast(stageGroups(stageId).length&&!groupId ? 'تم التعديل — الطالب ضمن «غير مفروز»' : 'تم التعديل');
       };
       if(stageId!==st.stageId){
         requireDeleteCode('🔒 نقل طالب إلى مرحلة أخرى','نقل الطلبة بين المراحل يتم بالترحيل من لوحة المعاون فقط (مرحلة بمرحلة).<br>هذا الخيار <b>لتصحيح خطأ إدخال</b> فقط: نقل <b>"'+esc(st.name)+'"</b> من '+esc(_stageName(st.stageId))+' إلى '+esc(_stageName(stageId))+'.',apply,'🔒 تأكيد النقل');
@@ -5259,6 +5288,17 @@ function editStudentSettings(id){
       apply();
     });
   _editStGroups(st.groupId);
+}
+// فرز سريع: نقل طالب «غير مفروز» إلى كروب مباشرة من القائمة (يختفي من الفرز تلقائياً)
+function quickAssignGroup(id,gid){
+  gid=parseInt(gid)||0; if(!gid) return;
+  const st=(state.students||[]).find(function(x){return x.id===id;}); if(!st) return;
+  const g=stageGroups(st.stageId).find(function(x){return x.id===gid;});
+  if(!g){ renderSettings(); return; }
+  const y=window.scrollY, n=nextNumFor(st.stageId,gid);
+  st.groupId=gid; st.num=n;
+  save(); renderSettings(); window.scrollTo(0,y);
+  toast('تم فرز «'+st.name+'» إلى '+g.name+' ✅');
 }
 function deleteStudentSettings(id){
   const st=state.students.find(function(x){return x.id===id;}); if(!st) return;
