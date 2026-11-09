@@ -6739,37 +6739,29 @@ function _printHTML(html,prep){
   run(f.contentWindow,function(){ f.remove(); });
 }
 // ===== المنذَرون: دمج المواد — طالب واحد + مستوى إنذار واحد + نوع واحد (نظري/عملي) = صف واحد =====
-const _WARN_LV=[[4,'تجاوز الحد','4 غيابات فأكثر في المادة'],[3,'انذار نهائي','3 غيابات'],[2,'انذار اول','غيابان'],[1,'تنبيه','غياب واحد']];
+const _WARN_NAME={4:'تجاوز الحد',3:'انذار نهائي',2:'انذار اول',1:'تنبيه'};
 function _warnLevelOf(n){ return n>=4?4:n; }
-function _warnGroupedRows(pairs){
+// طالب واحد = كتلة واحدة: كل مواده (حسب الفلتر) تحت اسمه، وأمام كل مادة نوع الإنذار والغيابات وتواريخها
+function _warnStudentBlocks(pairs){
   const stIdx=new Map(orderedStages().map(function(s,i){return [s.id,i];}));
-  const out={4:[],3:[],2:[],1:[]}, map={};
+  const dates={};
+  (state.attendance||[]).forEach(function(r){
+    if(r.status!=='absent') return;
+    const k=r.studentId+'_'+r.subjectId; (dates[k]=dates[k]||[]).push(r.savedAt||0);
+  });
+  const fmt=function(t){ const d=new Date(t); return d.getDate()+'/'+(d.getMonth()+1); };
+  const map=new Map();
   pairs.forEach(function(p){
-    const lv=_warnLevelOf(p.n), tp=(p.sb&&p.sb.type==='practical')?'practical':'theoretical';
-    const k=lv+'_'+p.st.id+'_'+tp;
-    let r=map[k];
-    if(!r){ r=map[k]={st:p.st, lv:lv, type:tp, subs:[]}; out[lv].push(r); }
-    r.subs.push({name:p.sb?p.sb.name:'؟', n:p.n});
+    let b=map.get(p.st.id);
+    if(!b){ b={st:p.st, subs:[]}; map.set(p.st.id,b); }
+    const ds=(dates[p.st.id+'_'+(p.sb?p.sb.id:'')]||[]).slice().sort(function(a,c){return a-c;});
+    b.subs.push({name:p.sb?p.sb.name:'؟', type:(p.sb&&p.sb.type==='practical')?'practical':'theoretical', n:p.n, lv:_warnLevelOf(p.n), dates:ds.map(fmt)});
   });
-  Object.keys(out).forEach(function(lv){
-    out[lv].forEach(function(r){ r.subs.sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'ar'); }); });
-    out[lv].sort(function(a,b){ return ((stIdx.get(a.st.stageId)||0)-(stIdx.get(b.st.stageId)||0)) || ((a.st.groupId||0)-(b.st.groupId||0)) || ((parseInt(a.st.num)||1e9)-(parseInt(b.st.num)||1e9)) || String(a.st.name).localeCompare(String(b.st.name),'ar') || (a.type==='theoretical'?-1:1); });
-  });
+  const out=[...map.values()];
+  out.forEach(function(b){ b.subs.sort(function(a,c){ return (c.lv-a.lv) || (a.type===c.type?0:(a.type==='theoretical'?-1:1)) || String(a.name).localeCompare(String(c.name),'ar'); }); });
+  out.sort(function(a,c){ return ((stIdx.get(a.st.stageId)||0)-(stIdx.get(c.st.stageId)||0)) || ((a.st.groupId||0)-(c.st.groupId||0)) || ((parseInt(a.st.num)||1e9)-(parseInt(c.st.num)||1e9)) || String(a.st.name).localeCompare(String(c.st.name),'ar'); });
   return out;
 }
-// أسطر المواد: 3 مواد في كل سطر بينها « + »
-function _warnSubLines(r){
-  const same=r.subs.every(function(s){return s.n===r.subs[0].n;});
-  const names=r.subs.map(function(s){ return s.name+((r.lv===4&&!same)?' ('+s.n+')':''); });
-  const lines=[];
-  for(let i=0;i<names.length;i+=3) lines.push(names.slice(i,i+3).join(' + '));
-  return lines;
-}
-function _warnCountTxt(r){
-  const ns=r.subs.map(function(s){return s.n;}), mn=Math.min.apply(null,ns), mx=Math.max.apply(null,ns);
-  return mn===mx ? mn : (mn+'–'+mx);
-}
-
 // ===== الطباعة الرسمية: صفحات A4 مقسّمة بالقياس — الترويسة والتذييل في كل صفحة، والتوقيع دائماً أسفل الصفحة الأخيرة =====
 function _formPagesDoc(title){
   return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(title)+'</title>'
@@ -6810,8 +6802,13 @@ function _formPagesDoc(title){
   +'table.f-t td{border:1px solid #000;padding:1.2mm 1mm;text-align:center;line-height:1.4;overflow-wrap:anywhere}'
   +'table.f-t td.n{white-space:normal;text-align:right;font-weight:700}'
   +'table.f-t td.w{white-space:normal;text-align:right;font-size:10pt}'
-  +'table.f-t td.w div+div{border-top:1px dotted #999;margin-top:.6mm;padding-top:.6mm}'
-  +'table.f-t tbody tr:nth-child(even) td{background:rgba(0,0,0,.03)}'
+  +'table.f-t tbody.stu{border-top:2px solid #000;border-bottom:2px solid #000}'
+  +'table.f-t tbody.stu:nth-of-type(even) td{background:rgba(0,0,0,.035)}'
+  +'table.f-t td.c{vertical-align:middle}table.f-t td.n{vertical-align:middle;font-size:10.5pt}'
+  +'table.f-t td.lv{font-weight:800;font-size:9.5pt}'
+  +'table.f-t td.lv4{background:#7f1d1d!important;color:#fff}table.f-t td.lv3{background:#fee2e2!important;color:#991b1b}'
+  +'table.f-t td.lv2{background:#ffedd5!important;color:#9a3412}table.f-t td.lv1{background:#fef3c7!important;color:#92400e}'
+  +'table.f-t td.dt{font-size:9pt;line-height:1.5}'
   +'.f-end{margin-top:auto;padding-top:4mm}'
   +'.f-sign{width:70mm;margin-right:auto;text-align:center;font-weight:800;font-size:13pt;line-height:2}'
   +'.f-copy{margin-top:3mm;font-size:10pt}'
@@ -6835,46 +6832,39 @@ function _formPageShell(doc){
   doc.getElementById('pages').appendChild(pg);
   return pg.querySelector('.pc');
 }
-// spec = {intro:html, sections:[{cap, capMore, head:html(<tr>), rows:[html(<tr>)]}], end:html}
+// spec = {intro:html, table:{colgroup, head:html(<tr>), units:[html(<tbody>…</tbody>)]}, end:html}
 function _formPaginate(doc, spec){
   const over=function(pc){ return pc.scrollHeight>pc.clientHeight+1 || pc.scrollWidth>pc.clientWidth+1; };
   let pc=_formPageShell(doc);
   if(spec.intro){ const d=doc.createElement('div'); d.innerHTML=spec.intro; while(d.firstChild) pc.appendChild(d.firstChild); }
-  let lastTb=null, lastSec=null;
-  spec.sections.forEach(function(sec){
-    let tb=null, first=true;
-    lastSec=sec;
-    const newTable=function(cont){
-      const t=doc.createElement('table'); t.className='f-t';
-      t.innerHTML=(sec.colgroup||'')+'<thead><tr><th class="cap" colspan="'+sec.cols+'">'+(cont?sec.capMore:sec.cap)+'</th></tr>'+sec.head+'</thead><tbody></tbody>';
-      pc.appendChild(t); return t.tBodies[0];
-    };
-    sec.rows.forEach(function(rowHTML){
-      if(!tb) tb=newTable(!first);
-      const tmp=doc.createElement('tbody'); tmp.innerHTML=rowHTML; const tr=tmp.firstElementChild;
-      tb.appendChild(tr);
-      if(over(pc)){
-        tb.removeChild(tr);
-        if(!tb.rows.length) tb.parentNode.remove();   // عنوان الجدول وحده لا يبقى في أسفل الصفحة
-        pc=_formPageShell(doc); first=false;
-        tb=newTable(true);
-        tb.appendChild(tr);
-      }
-      lastTb=tb;
-    });
+  const T=spec.table;
+  const newTable=function(){
+    const t=doc.createElement('table'); t.className='f-t';
+    t.innerHTML=(T.colgroup||'')+'<thead>'+T.head+'</thead>';
+    pc.appendChild(t); return t;
+  };
+  let tb=null;
+  T.units.forEach(function(html){
+    if(!tb) tb=newTable();
+    const tmp=doc.createElement('table'); tmp.innerHTML=html; const u=tmp.tBodies[0];
+    tb.appendChild(u);
+    if(over(pc)){
+      // كتلة الطالب لا تُقسم بين صفحتين — تنتقل كاملة إلى الصفحة التالية
+      tb.removeChild(u);
+      if(!tb.tBodies.length) tb.remove();
+      pc=_formPageShell(doc);
+      tb=newTable(); tb.appendChild(u);
+    }
   });
-  // التوقيع: دائماً أسفل الصفحة الأخيرة؛ إن لم يتّسع ينتقل إلى صفحة جديدة
+  // التوقيع: دائماً أسفل الصفحة الأخيرة؛ إن لم يتّسع ينتقل مع آخر طالب إلى صفحة جديدة
   const end=doc.createElement('div'); end.className='f-end'; end.innerHTML=spec.end;
   pc.appendChild(end);
   if(over(pc)){
-    end.remove(); pc=_formPageShell(doc);
-    // حتى لا تبقى صفحة التوقيع فارغة: ننقل آخر صفوف الجدول (حتى 3) معه إلى الصفحة الأخيرة
-    if(lastTb && lastSec && lastTb.rows.length>3){
-      const moved=[]; for(let k=0;k<3;k++) moved.unshift(lastTb.rows[lastTb.rows.length-1].parentNode.removeChild(lastTb.rows[lastTb.rows.length-1]));
-      const t=doc.createElement('table'); t.className='f-t';
-      t.innerHTML=(lastSec.colgroup||'')+'<thead><tr><th class="cap" colspan="'+lastSec.cols+'">'+lastSec.capMore+'</th></tr>'+lastSec.head+'</thead><tbody></tbody>';
-      pc.appendChild(t); moved.forEach(function(r){ t.tBodies[0].appendChild(r); });
-    }
+    end.remove();
+    const last=(tb && tb.tBodies.length>1) ? tb.tBodies[tb.tBodies.length-1] : null;
+    if(last) last.remove();
+    pc=_formPageShell(doc);
+    if(last){ const t=newTable(); t.appendChild(last); }
     pc.appendChild(end);
   }
   const pages=doc.querySelectorAll('.pg');
@@ -6885,26 +6875,23 @@ const _FORM_END='<div class="f-sign">الأستاذ الدكتور<br>مشتاق
 function printWarningsForm(){
   const ix=adIndex(), pairs=adWarnPairs(ix);
   if(!pairs.length){ toast('لا يوجد طلاب لديهم تنبيه أو إنذار ضمن الفلتر الحالي','e'); return; }
-  const G=_warnGroupedRows(pairs);
-  let total=0; _WARN_LV.forEach(function(l){ total+=G[l[0]].length; });
+  const B=_warnStudentBlocks(pairs);
+  const hasG=B.some(function(b){ return !!b.st.groupId; });
   const intro='<div class="f-title">م / قائمة الطلبة المنذَرين بسبب الغياب</div>'
-    +'<div class="f-sub">السنة الدراسية '+esc(academicYear())+' · '+esc(adFilterText(ix))+'</div>'
-    +'<div class="f-sum">'+_WARN_LV.map(function(l){ return '<span>'+l[1]+': '+G[l[0]].length+'</span>'; }).join('')+'<span>المجموع: '+total+'</span></div>';
-  // عرض ثابت لكل عمود (المجموع = عرض الورقة) — الجدول لا يخرج عن الورقة مهما طال النص
-  const colgroup='<colgroup><col style="width:9.5mm"><col style="width:9mm"><col style="width:32mm"><col style="width:21mm"><col style="width:15mm"><col><col style="width:11mm"><col style="width:14mm"></colgroup>';
-  const head='<tr><th>ت</th><th>الرقم</th><th>اسم الطالب</th><th>المرحلة</th><th>الكروب</th><th>المادة</th><th>النوع</th><th>الغيابات</th></tr>';
-  const sections=[];
-  _WARN_LV.forEach(function(l){
-    const rows=G[l[0]]; if(!rows.length) return;
-    sections.push({cols:8, head:head, colgroup:colgroup,
-      cap:l[1]+' — '+l[2]+' ('+rows.length+')', capMore:l[1]+' — '+l[2]+' (تكملة)',
-      rows:rows.map(function(r,i){
-        return '<tr><td>'+(i+1)+'</td><td>'+esc(r.st.num||'')+'</td><td class="n">'+esc(r.st.name)+'</td><td>'+esc(_stageName(r.st.stageId)||'—')+'</td><td>'+esc(_groupName(r.st.groupId))+'</td>'
-          +'<td class="w">'+_warnSubLines(r).map(function(x){return '<div>'+esc(x)+'</div>';}).join('')+'</td>'
-          +'<td>'+(r.type==='practical'?'عملي':'نظري')+'</td><td><b>'+_warnCountTxt(r)+'</b></td></tr>';
-      })});
+    +'<div class="f-sub">السنة الدراسية '+esc(academicYear())+' · '+esc(adFilterText(ix))+' · عدد الطلبة: '+B.length+'</div>';
+  const colgroup='<colgroup><col style="width:10mm"><col style="width:'+(hasG?31:37)+'mm"><col style="width:19mm">'+(hasG?'<col style="width:16mm">':'')
+    +'<col><col style="width:20mm"><col style="width:11mm"><col style="width:12mm"><col style="width:'+(hasG?28:32)+'mm"></colgroup>';
+  const head='<tr><th>ت</th><th>اسم الطالب</th><th>المرحلة</th>'+(hasG?'<th>الكروب</th>':'')+'<th>المادة</th><th>نوع الإنذار</th><th>النوع</th><th>الغيابات</th><th>تواريخ الغياب</th></tr>';
+  const units=B.map(function(b,i){
+    const k=b.subs.length;
+    return '<tbody class="stu">'+b.subs.map(function(s,j){
+      return '<tr>'+(j===0
+          ? '<td rowspan="'+k+'" class="c">'+(i+1)+'</td><td rowspan="'+k+'" class="n">'+esc(b.st.name)+'</td><td rowspan="'+k+'" class="c">'+esc(_stageName(b.st.stageId)||'—')+'</td>'+(hasG?'<td rowspan="'+k+'" class="c">'+esc(b.st.groupId?_groupName(b.st.groupId):'—')+'</td>':'')
+          : '')
+        +'<td class="w">'+esc(s.name)+'</td><td class="lv lv'+s.lv+'">'+_WARN_NAME[s.lv]+'</td><td>'+(s.type==='practical'?'عملي':'نظري')+'</td><td><b>'+s.n+'</b></td><td class="dt">'+esc(s.dates.join('\u200F، '))+'</td></tr>';
+    }).join('')+'</tbody>';
   });
-  _printHTML(_formPagesDoc('م / قائمة الطلبة المنذَرين بسبب الغياب'), function(win){ _formPaginate(win.document,{intro:intro, sections:sections, end:_FORM_END}); });
+  _printHTML(_formPagesDoc('م / قائمة الطلبة المنذَرين بسبب الغياب'), function(win){ _formPaginate(win.document,{intro:intro, table:{colgroup:colgroup, head:head, units:units}, end:_FORM_END}); });
 }
 
 // ===== تفاصيل طالب / محاضرة =====
@@ -7009,22 +6996,40 @@ function exportWarningsExcel(){
   if(!_xlsxOK()) return;
   const ix=adIndex(), pairs=adWarnPairs(ix), C=XL.C;
   if(!pairs.length){ toast('لا يوجد طلاب لديهم تنبيه أو إنذار','e'); return; }
-  const G=_warnGroupedRows(pairs);
-  const sh=new XL.Sheet(8);
-  sh.banner('قائمة الطلبة المنذَرين — كلية طب الأسنان / جامعة ذي قار', 'السنة الدراسية '+academicYear()+' · '+adFilterText(ix)+' · '+_today(), C.amber);
-  const lv=[[4,'🚫 تجاوز الحد (4 غيابات فأكثر)','7F1D1D'],[3,'🔴 انذار نهائي (3 غيابات)','B91C1C'],[2,'🟠 انذار اول (غيابان)','C2410C'],[1,'⚠️ تنبيه (غياب واحد)','B45309']];
-  sh.stats(lv.map(function(l){ return [l[1].split(' (')[0], G[l[0]].length, l[2]]; }));
-  lv.forEach(function(l){
-    const g=G[l[0]];
-    if(!g.length) return;
-    sh.section(l[1]+' — '+g.length, l[2]);
-    sh.table([{t:'#',h:'center'},{t:'الرقم',h:'center'},{t:'اسم الطالب',b:1,min:20,max:24,wrap:1},{t:'المرحلة',max:13,wrap:1},{t:'الكروب',max:9,wrap:1},{t:'المادة',min:44,max:44,wrap:1,nofit:1},{t:'النوع',h:'center'},{t:'الغيابات',h:'center'}],
-      g.map(function(r,i){ return [i+1, r.st.num||'', r.st.name, _stageName(r.st.stageId), _groupName(r.st.groupId), _warnSubLines(r).join('\n'), r.type==='practical'?'عملي':'نظري', _warnCountTxt(r)]; }),
-      {head:l[2], rowH:function(i,row){ const ln=String(row[5]).split('\n').length; const nm=Math.ceil(String(row[2]).length/22); return Math.max(20, 15*Math.max(ln,nm)+6); },
-       style:function(i,c,v){ return c===7?(_warnXL(typeof v==='number'?v:4)||{}):null; }});
+  const B=_warnStudentBlocks(pairs);
+  const hasG=B.some(function(b){ return !!b.st.groupId; });
+  const cols=['ت','اسم الطالب','المرحلة'].concat(hasG?['الكروب']:[]).concat(['المادة','نوع الإنذار','النوع','الغيابات','تواريخ الغياب']);
+  const W=[5,26,15].concat(hasG?[11]:[]).concat([30,14,8,10,24]);
+  const nC=cols.length, oS=hasG?4:3;   // أول عمود خاص بالمادة
+  const sh=new XL.Sheet(nC);
+  sh.banner('قائمة الطلبة المنذَرين — كلية طب الأسنان / جامعة ذي قار', 'السنة الدراسية '+academicYear()+' · '+adFilterText(ix)+' · عدد الطلبة: '+B.length+' · '+_today(), C.amber);
+  const head=XL.S({bg:C.head,fg:'FFFFFF',b:1,sz:11,h:'center',wrap:1,bc:'475569'});
+  cols.forEach(function(t,c){ sh.put(sh.r,c,t,head); });
+  sh.rows[sh.r]={hpt:26}; const hr=sh.r; sh.r++;
+  B.forEach(function(b,i){
+    const r0=sh.r, k=b.subs.length, bg=(i%2)?'F8FAFC':'FFFFFF';
+    const st=function(o){ return XL.S(Object.assign({bg:bg,sz:11,h:'center',wrap:1,bc:'94A3B8'},o||{})); };
+    b.subs.forEach(function(s,j){
+      const r=sh.r;
+      const lead=[i+1, b.st.name, _stageName(b.st.stageId)||'—'].concat(hasG?[b.st.groupId?_groupName(b.st.groupId):'—']:[]);
+      lead.forEach(function(v,c){ sh.put(r,c,j===0?v:'', c===1?st({b:1,h:'right'}):st()); });
+      const wx=_warnXL(s.lv)||{};
+      sh.put(r,oS,s.name,st({h:'right'}));
+      sh.put(r,oS+1,_WARN_NAME[s.lv],st(wx));
+      sh.put(r,oS+2,s.type==='practical'?'عملي':'نظري',st());
+      sh.put(r,oS+3,s.n,st({b:1}));
+      sh.put(r,oS+4,s.dates.join('\u200F، '),st({sz:10}));
+      const lines=Math.max(1, Math.ceil(String(s.name).length/28), Math.ceil(s.dates.join('، ').length/22));
+      sh.rows[r]={hpt:Math.max(20, 15*lines+5)};
+      sh.r++;
+    });
+    if(k>1) for(let c=0;c<oS;c++) sh.merges.push({s:{r:r0,c:c},e:{r:r0+k-1,c:c}});
   });
-  sh.w[5]=44;
-  const wb=XL.book(); XL.add(wb,sh,'المنذَرون');
+  sh.w=W.slice();
+  sh.af=null;
+  const wb=XL.book(); const nm=XL.add(wb,sh,'المنذَرون');
+  // تكرار صف العناوين في كل صفحة مطبوعة
+  wb.Workbook.Names=[{Name:'_xlnm.Print_Titles', Sheet:0, Ref:"'"+nm+"'!$"+(hr+1)+":$"+(hr+1)}];
   XL.saveFit(wb,'الطلبة المنذَرون '+_today()+'.xlsx');
   toast('تم تصدير قائمة المنذَرين ✅');
 }
