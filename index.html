@@ -772,11 +772,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .warn-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;white-space:nowrap}
 .wb-1{background:rgba(251,191,36,.18);color:#d97706}
 .wb-2{background:rgba(251,146,60,.2);color:#ea580c}
-.wb-3{background:rgba(239,68,68,.18);color:#ef4444}
+.wb-3{background:#dc2626;color:#fff}
+.wb-0{background:var(--glass3);color:var(--text2)}
+.wc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.wc-grid label{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:700;color:var(--text2)}
+.wc-grid input{text-align:center}
+@media(max-width:520px){.wc-grid{grid-template-columns:1fr}}
 .wb-4{background:#7f1d1d;color:#fecaca}
 body:not(.light-mode) .wb-1{color:#fcd34d}
 body:not(.light-mode) .wb-2{color:#fdba74}
-body:not(.light-mode) .wb-3{color:#fca5a5}
+body:not(.light-mode) .wb-3{color:#fff}
 
 /* ---------- رأس صفحة الحضور ---------- */
 .att-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--glass2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;flex-wrap:wrap}
@@ -1523,7 +1528,7 @@ body:not(.light-mode) .num-tile.is-leave b,body:not(.light-mode) .st-menu .sm-l,
 body:not(.light-mode) .bc-chip.is-leave b,body:not(.light-mode) .ad-sel.leave{color:#7db4ff}
 body.light-mode .wb-1{color:#92400e}
 body.light-mode .wb-2{color:#9a3412}
-body.light-mode .wb-3{color:#b91c1c}
+body.light-mode .wb-3{color:#fff}
 body.light-mode .tool-btn.warn,body.light-mode .pending-badge{color:#b45309}
 body:not(.light-mode) .tool-btn.warn,body:not(.light-mode) .pending-badge{color:#fbbf24}
 body.light-mode .tool-btn.grad,body.light-mode .pv-res.grad{color:#6d28d9}
@@ -1788,7 +1793,7 @@ body:not(.light-mode) .hi-rows .hi-row.is-leave{background:rgba(96,165,250,.26);
         <label>المادة<select id="adfSubject" onchange="adSetF('subject',this.value)"></select></label>
         <label>النوع<select id="adfType" onchange="adSetF('type',this.value)"><option value="">الكل</option><option value="theoretical">📖 نظري</option><option value="practical">🔬 عملي</option></select></label>
         <label>الحالة<select id="adfStatus" onchange="adSetF('status',this.value)"><option value="">الكل</option><option value="absent">❌ غائب</option><option value="present">✅ حاضر</option><option value="leave">🏖️ مجاز</option></select></label>
-        <label>مستوى الإنذار<select id="adfWarn" onchange="adSetF('warn',this.value)"><option value="">الكل</option><option value="1">⚠️ تنبيه (1)</option><option value="2">🟠 انذار اول (2)</option><option value="3">🔴 انذار نهائي (3)</option><option value="4">🚫 تجاوز الحد (4+)</option><option value="any">أي تنبيه أو إنذار</option></select></label>
+        <label>مستوى الإنذار<select id="adfWarn" onchange="adSetF('warn',this.value)"><option value="">الكل</option><option value="1">⚠️ تنبيه</option><option value="2">🟠 انذار اول</option><option value="3">🔴 انذار نهائي</option><option value="4">🚫 تجاوز الحد</option><option value="any">أي تنبيه أو إنذار</option></select></label>
         <label>من تاريخ<input type="date" id="adfFrom" onchange="adSetF('from',this.value)"></label>
         <label>إلى تاريخ<input type="date" id="adfTo" onchange="adSetF('to',this.value)"></label>
         <div class="ad-f-actions"><button class="ad-btn" onclick="adResetFilters()">↺ إعادة تعيين</button></div>
@@ -1845,6 +1850,15 @@ body:not(.light-mode) .hi-rows .hi-row.is-leave{background:rgba(96,165,250,.26);
           <div class="asd-item-sub">أرشفة السنة المنتهية ثم الترحيل من المرحلة الأخيرة نزولاً</div>
         </div>
         <div class="asd-item-icon">⏫</div>
+      </button>
+
+      <!-- حساب الإنذارات -->
+      <button class="asd-item" onclick="closeAdminSettings();openWarnSettings()">
+        <div class="asd-item-info">
+          <div class="asd-item-label">حساب الإنذارات (النسبة المئوية)</div>
+          <div class="asd-item-sub">عدد أسابيع الدوام ونسب التنبيه والإنذار الأول والنهائي</div>
+        </div>
+        <div class="asd-item-icon">📊</div>
       </button>
 
       <!-- استيراد قوائم الطلبة -->
@@ -3813,14 +3827,81 @@ function nextNumFor(stageId,groupId){
   return max+1;
 }
 
-function warnInfo(n){
-  if(!n) return null;
-  if(n===1) return {label:'تنبيه',       cls:'wb-1', icon:'⚠️'};
-  if(n===2) return {label:'انذار اول',   cls:'wb-2', icon:'🟠'};
-  if(n===3) return {label:'انذار نهائي', cls:'wb-3', icon:'🔴'};
-  return          {label:'تجاوز الحد',  cls:'wb-4', icon:'🚫'};
+// ================================================
+// الإنذارات بالنسبة المئوية — حسب الساعات
+// المادة النظرية: ساعة في الأسبوع · المادة التي لها عملي: النظري ساعة + العملي ساعتان (مادة واحدة)
+// النسبة = ساعات غياب الطالب في المادة ÷ مجموع ساعات المادة في السنة × 100
+// ================================================
+const WARN_DEF={weeks:30, t1:5, t2:7, t3:10};
+function warnCfg(){
+  const w=(state.meta&&state.meta.warn)||{}, n=function(v,d){ v=+v; return v>0?v:d; };
+  return {weeks:n(w.weeks,WARN_DEF.weeks), t1:n(w.t1,WARN_DEF.t1), t2:n(w.t2,WARN_DEF.t2), t3:n(w.t3,WARN_DEF.t3)};
 }
-function warnBadgeHTML(n){ const w=warnInfo(n); return w ? '<span class="warn-badge '+w.cls+'">'+w.icon+' '+w.label+' ('+n+')</span>' : ''; }
+function _subHours(sb){ return sb && sb.type==='practical' ? 2 : 1; }
+function warnUnitKey(sb){ return sb ? (sb.stageId+'|'+_subKey(sb.name)) : '?'; }
+let _wuMemo=null;
+// المواد بنفس الاسم في نفس المرحلة = مادة واحدة (نظري + عملي)
+function warnUnits(){
+  const c=warnCfg(), mk=_stateVer+'|'+c.weeks+'|'+(state.subjects||[]).length;
+  if(_wuMemo && _wuMemo.k===mk) return _wuMemo;
+  const units={}, bySub=new Map();
+  (state.subjects||[]).forEach(function(s){
+    const k=warnUnitKey(s);
+    let u=units[k]; if(!u){ u=units[k]={key:k, name:String(s.name).trim(), stageId:s.stageId, ids:[], th:false, pr:false, rep:s.id, total:0}; }
+    u.ids.push(s.id);
+    if(s.type==='practical') u.pr=true; else { if(!u.th) u.rep=s.id; u.th=true; }
+    bySub.set(s.id,s);
+  });
+  Object.keys(units).forEach(function(k){ const u=units[k]; u.total=c.weeks*((u.th?1:0)+(u.pr?2:0)); });
+  _wuMemo={k:mk, units:units, bySub:bySub};
+  return _wuMemo;
+}
+function warnLevel(pct){
+  const c=warnCfg(), e=1e-9;
+  if(pct>c.t3+e) return 4;          // تجاوز الحد
+  if(pct>=c.t3-e) return 3;         // انذار نهائي
+  if(pct>=c.t2-e) return 2;         // انذار اول
+  if(pct>=c.t1-e) return 1;         // تنبيه
+  return 0;
+}
+function fmtPct(p){ const v=Math.round((+p||0)*100)/100; return String(v)+'%'; }
+// يحسب لكل (طالب، مادة) ساعات الغياب ونسبتها ومستوى الإنذار — المجاز لا يُحسب
+function warnCompute(recs){
+  const W=warnUnits(), out=new Map();
+  (recs||[]).forEach(function(r){
+    if(r.status!=='absent') return;
+    const sb=W.bySub.get(r.subjectId); if(!sb) return;
+    const u=W.units[warnUnitKey(sb)]; if(!u) return;
+    const k=r.studentId+'_'+u.key;
+    let x=out.get(k);
+    if(!x){ x={sid:r.studentId, unit:u, sub:u.rep, h:0, th:0, pr:0, abs:[]}; out.set(k,x); }
+    const pr=sb.type==='practical';
+    x.h+=pr?2:1; if(pr) x.pr++; else x.th++;
+    x.abs.push({t:r.savedAt||0, pr:pr});
+  });
+  out.forEach(function(x){ x.pct=x.unit.total ? x.h/x.unit.total*100 : 0; x.lv=warnLevel(x.pct); });
+  return out;
+}
+// نص الغياب: مادة لها عملي ← «نظري 1 + عملي 3 (7 ساعات)»، غير ذلك ← العدد
+function hoursTxt(h){ return h===1?'ساعة واحدة':h===2?'ساعتان':(h>=3&&h<=10)?(h+' ساعات'):(h+' ساعة'); }
+function warnAbsText(x){
+  if(x.unit.th && x.unit.pr) return 'نظري '+x.th+' + عملي '+x.pr+' ('+hoursTxt(x.h)+')';
+  return String(x.th+x.pr);
+}
+function _wMatch(w,lv){ return w==='any'?lv>=1:(w==='4'?lv>=4:lv===+w); }
+function warnInfo(lv){
+  if(!lv) return null;
+  if(lv===1) return {label:'تنبيه',       cls:'wb-1', icon:'⚠️'};
+  if(lv===2) return {label:'انذار اول',   cls:'wb-2', icon:'🟠'};
+  if(lv===3) return {label:'انذار نهائي', cls:'wb-3', icon:'🔴'};
+  return           {label:'تجاوز الحد',  cls:'wb-4', icon:'🚫'};
+}
+// x = {lv, pct} — تحت حد التنبيه تظهر النسبة فقط بلون محايد
+function warnBadgeHTML(x){
+  if(!x || !(x.pct>0)) return '';
+  const w=warnInfo(x.lv);
+  return w ? '<span class="warn-badge '+w.cls+'">'+w.icon+' '+w.label+' ('+fmtPct(x.pct)+')</span>' : '<span class="warn-badge wb-0">'+fmtPct(x.pct)+'</span>';
+}
 
 function getActiveSession(sessKey){
   const s=(window._activeSessions||{})[sessKey];
@@ -3832,18 +3913,26 @@ function _marks(sessKey){
 }
 // عدد غيابات الطالب في المادة = المحفوظ (عدا الجلسة المفتوحة) + الاختيار الحالي
 let _absMemo=null;
-function liveAbsCount(stId,subjectId,groupId){
+function liveAbsCount(stId,subjectId,groupId){ const x=liveWarn(stId,subjectId,groupId); return x.th+x.pr; }
+// نسبة غياب الطالب في هذه المادة (نظري + عملي، من كل الكروبات) مع ما سُجّل في الجلسة الحالية قبل الحفظ
+function liveWarn(stId,subjectId,groupId){
   const sessKey=subjectId+'-'+groupId, act=getActiveSession(sessKey);
-  // عدّاد مخزَّن مؤقتاً: يُحسب مرة واحدة لكل عرض بدل المرور على كل السجلات لكل طالب
-  const key=sessKey+'|'+(act?act.session:'')+'|'+_stateVer;
+  const key=sessKey+'|'+(act?act.session:'')+'|'+_stateVer+'|'+warnCfg().weeks;
   if(!_absMemo || _absMemo.key!==key){
-    const m=new Map();
+    const W=warnUnits(), sb=W.bySub.get(subjectId), u=sb?W.units[warnUnitKey(sb)]:null;
+    const ids=new Set(u?u.ids:[subjectId]), m=new Map();
     (state.attendance||[]).forEach(function(a){
-      if(a.subjectId===subjectId && a.groupId===groupId && a.status==='absent' && (!act || a.session!==act.session)) m.set(a.studentId,(m.get(a.studentId)||0)+1);
+      if(a.status!=='absent' || !ids.has(a.subjectId)) return;
+      if(act && a.session===act.session && a.subjectId===subjectId && a.groupId===groupId) return;   // الجلسة المفتوحة تُحسب من العلامات الحالية
+      const b=W.bySub.get(a.subjectId), pr=!!(b&&b.type==='practical');
+      let v=m.get(a.studentId); if(!v){ v={h:0,th:0,pr:0}; m.set(a.studentId,v); }
+      v.h+=pr?2:1; if(pr) v.pr++; else v.th++;
     });
-    _absMemo={key:key, m:m};
+    _absMemo={key:key, m:m, total:u?u.total:0, pr:!!(sb&&sb.type==='practical')};
   }
-  return (_absMemo.m.get(stId)||0) + (_marks(sessKey)[stId]==='absent' ? 1 : 0);
+  const M=_absMemo, v=M.m.get(stId)||{h:0,th:0,pr:0}, cur=_marks(sessKey)[stId]==='absent';
+  const h=v.h+(cur?(M.pr?2:1):0), pct=M.total?h/M.total*100:0;
+  return {h:h, th:v.th+(cur&&!M.pr?1:0), pr:v.pr+(cur&&M.pr?1:0), pct:pct, lv:warnLevel(pct)};
 }
 
 let _attCtx = null;   // {subjectId, groupId, stageId, sessKey}
@@ -3979,7 +4068,7 @@ function _rowHTML(st,v){
   const c=_attCtx;
   return '<div class="st-row'+(v?' is-'+v:'')+'" id="row-'+st.id+'" data-sid="'+st.id+'" data-q="'+esc(String(st.name).toLowerCase())+' '+st.num+'">'
     +'<span class="st-num">'+st.num+'</span>'
-    +'<div class="st-main"><div class="st-name">'+esc(st.name)+'<span class="leave-tag" id="lv-'+st.id+'"'+(v==='leave'?'':' hidden')+'>🏖️ مجاز</span></div><div class="st-warn" id="warn-'+st.id+'">'+warnBadgeHTML(liveAbsCount(st.id,c.subjectId,c.groupId))+'</div></div>'
+    +'<div class="st-main"><div class="st-name">'+esc(st.name)+'<span class="leave-tag" id="lv-'+st.id+'"'+(v==='leave'?'':' hidden')+'>🏖️ مجاز</span></div><div class="st-warn" id="warn-'+st.id+'">'+warnBadgeHTML(liveWarn(st.id,c.subjectId,c.groupId))+'</div></div>'
     +'<div class="att-toggle">'
       +'<button class="att-btn absent-btn'+(v==='absent'?' active':'')+'" onclick="attMark('+st.id+',\'absent\')" aria-label="غائب">✕<span> غائب</span></button>'
     +'</div>'
@@ -4044,7 +4133,7 @@ function _paintStudent(id){
   if(row){ const ab=row.querySelector('.absent-btn'); if(ab) ab.classList.toggle('active', v==='absent'); }
   const lv=document.getElementById('lv-'+id); if(lv) lv.hidden=(v!=='leave');
   const w=document.getElementById('warn-'+id);
-  if(w) w.innerHTML=warnBadgeHTML(liveAbsCount(id,c.subjectId,c.groupId));
+  if(w) w.innerHTML=warnBadgeHTML(liveWarn(id,c.subjectId,c.groupId));
 }
 function _attStats(){
   const c=_attCtx; if(!c) return;
@@ -6136,7 +6225,7 @@ function _dt(at){
   return {date:d.getFullYear()+'/'+_p2(d.getMonth()+1)+'/'+_p2(d.getDate()), day:d.toLocaleDateString('ar-IQ',{weekday:'long'}), time:_p2(d.getHours())+':'+_p2(d.getMinutes())};
 }
 function _warnLabel(n){ return n>=4?'تجاوز الحد':n===3?'انذار نهائي':n===2?'انذار اول':n===1?'تنبيه':'—'; }
-function _warnXL(n){ return n>=4?{bg:'7F1D1D',fg:'FFFFFF',b:1}:n===3?{bg:'FEE2E2',fg:'991B1B',b:1}:n===2?{bg:'FFEDD5',fg:'9A3412',b:1}:n===1?{bg:'FEF3C7',fg:'92400E',b:1}:null; }
+function _warnXL(n){ return n>=4?{bg:'7F1D1D',fg:'FFFFFF',b:1}:n===3?{bg:'DC2626',fg:'FFFFFF',b:1}:n===2?{bg:'FFEDD5',fg:'9A3412',b:1}:n===1?{bg:'FEF3C7',fg:'92400E',b:1}:null; }
 function _stXL(s){ return s==='absent'?{bg:XL.C.aBg,fg:XL.C.a,b:1}:s==='leave'?{bg:XL.C.lBg,fg:XL.C.l,b:1}:{bg:XL.C.pBg,fg:XL.C.p,b:1}; }
 function _pct(a,t){ return t ? Math.round(a/t*1000)/1000 : 0; }
 function _subType(s){ return s && s.type==='practical' ? 'عملي' : 'نظري'; }
@@ -6163,7 +6252,10 @@ function buildArchiveAndSave(){
     if(!s){ s={sk:r.sk, subjectId:r.subjectId, groupId:r.groupId||0, stageId:r.stageId, at:r.savedAt, p:[], a:[], l:[]}; sess.set(r.sk,s); }
     s[k].push(r.studentId);
   });
-  const maxAbs=function(sid){ const t=tot.get(sid); let n=0, sub=0; if(t) Object.keys(t.sub).forEach(function(x){ if(t.sub[x].a>n){ n=t.sub[x].a; sub=+x; } }); return {n:n, sub:sub}; };
+  const WC=warnCompute(recs), WMX=new Map();
+  WC.forEach(function(x){ const c=WMX.get(x.sid); if(!c || x.lv>c.n || (x.lv===c.n && x.pct>c.pct)) WMX.set(x.sid,{n:x.lv, pct:x.pct, sub:x.sub, name:x.unit.name}); });
+  const maxAbs=function(sid){ return WMX.get(sid)||{n:0, pct:0, sub:0, name:''}; };
+  const lvOf=function(sid,sb){ const x=sb?WC.get(sid+'_'+warnUnitKey(sb)):null; return x?x.lv:0; };
   // طلبة كل مرحلة = الموجودون فيها + من لديه سجلات فيها
   const stIds=new Map(stages.map(function(s){return [s.id,new Set()];}));
   (state.students||[]).forEach(function(s){ if(!s.graduated && stIds.has(s.stageId)) stIds.get(s.stageId).add(s.id); });
@@ -6223,13 +6315,13 @@ function buildArchiveAndSave(){
   const mRows=master.map(function(st,i){
     const t=tot.get(st.id)||{p:0,a:0,l:0}, n=t.p+t.a+t.l, mx=maxAbs(st.id), sb=subMap.get(mx.sub);
     const rr=mr0+2+i;
-    return [i+1, st.name, _stageName(st.stageId)||'—', _groupName(st.groupId), st.num||'', st.barcode||('ST-'+String(st.id).padStart(5,'0')), t.p, t.a, t.l, n, _pct(t.a,n), mx.n, _warnLabel(mx.n), mx.n?(sb?sb.name:'؟'):'—',
+    return [i+1, st.name, _stageName(st.stageId)||'—', _groupName(st.groupId), st.num||'', st.barcode||('ST-'+String(st.id).padStart(5,'0')), t.p, t.a, t.l, n, _pct(t.a,n), Math.round(mx.pct*100)/10000, _warnLabel(mx.n), mx.pct>0?(mx.name||(sb?sb.name:'؟')):'—',
       {f:'IF(LEN(TRIM('+SREF+'))=0,"",IF(ISNUMBER(SEARCH(TRIM('+SREF+'),B'+rr+')),ROW(),""))', v:''}];
   });
-  s2.table([{t:'#',h:'center'},{t:'اسم الطالب',b:1,min:24,max:34},{t:'المرحلة'},{t:'الكروب'},{t:'الرقم',h:'center'},{t:'الباركود',h:'center'},{t:'حضور',h:'center'},{t:'غياب',h:'center'},{t:'مجاز',h:'center'},{t:'المجموع',h:'center'},{t:'نسبة الغياب',h:'center',nf:'0%'},{t:'أعلى غياب بمادة',h:'center'},{t:'الإنذار',h:'center',min:12},{t:'المادة الأعلى غياباً',max:26},{t:'بحث',nofit:1}],
+  s2.table([{t:'#',h:'center'},{t:'اسم الطالب',b:1,min:24,max:34},{t:'المرحلة'},{t:'الكروب'},{t:'الرقم',h:'center'},{t:'الباركود',h:'center'},{t:'حضور',h:'center'},{t:'غياب',h:'center'},{t:'مجاز',h:'center'},{t:'المجموع',h:'center'},{t:'نسبة الغياب',h:'center',nf:'0%'},{t:'أعلى نسبة بمادة',h:'center',nf:'0.00%'},{t:'الإنذار',h:'center',min:12},{t:'المادة الأعلى نسبة',max:26},{t:'بحث',nofit:1}],
     mRows, {filter:true, style:function(i,c,v,row){
       if(c===6) return {fg:C.p,b:1}; if(c===7) return {fg:C.a,b:1}; if(c===8) return {fg:C.l,b:1};
-      if(c===12) return _warnXL(row[11]); if(c===14) return {fg:'FFFFFF'};
+      if(c===12) return _warnXL(maxAbs(master[i].id).n); if(c===14) return {fg:'FFFFFF'};
       return null; }});
   s2.w[14]=4;
   const ws2name=XL.add(wb,s2,MASTER);
@@ -6260,7 +6352,7 @@ function buildArchiveAndSave(){
       subs.map(function(s,i){ let n=0,p=0,a=0,l=0; ss.forEach(function(x){ if(x.subjectId===s.id){ n++; p+=x.p.length; a+=x.a.length; l+=x.l.length; } }); return [i+1, s.name, _subType(s), n, p, a, l, _pct(a,p+a+l)]; }),
       {head:col, style:function(i,c){ return c===4?{fg:C.p,b:1}:c===5?{fg:C.a,b:1}:c===6?{fg:C.l,b:1}:null; }});
     // سجل الطلبة
-    sh.section('🧑‍🎓 سجل الطلبة', col, 'أعمدة المواد = عدد الغيابات في كل مادة (اللون يوضّح مستوى الإنذار) · الإجماليات تشمل كل المواد');
+    sh.section('🧑‍🎓 سجل الطلبة', col, 'أعمدة المواد = عدد الغيابات في كل مادة (اللون يوضّح مستوى الإنذار بالنسبة المئوية) · الإجماليات تشمل كل المواد');
     const sCols=[{t:'#',h:'center'},{t:'الرقم',h:'center'},{t:'اسم الطالب',b:1,min:24,max:34},{t:'الكروب',max:14}]
       .concat(subs.map(function(s){ return {t:s.name+(s.type==='practical'?' (عملي)':''),h:'center',max:14,min:9}; }))
       .concat([{t:'حضور',h:'center'},{t:'غياب',h:'center'},{t:'مجاز',h:'center'},{t:'نسبة الغياب',h:'center',nf:'0%'},{t:'الإنذار الأعلى',h:'center',min:12}]);
@@ -6268,11 +6360,11 @@ function buildArchiveAndSave(){
     sh.table(sCols, ids.map(function(st,i){
       const t=tot.get(st.id)||{p:0,a:0,l:0}, mx=maxAbs(st.id);
       return [i+1, st.num||'', st.name, _groupName(st.groupId)].concat(subs.map(function(s){ const x=cell(st.id,s.id); return x.a; }))
-        .concat([t.p,t.a,t.l,_pct(t.a,t.p+t.a+t.l),_warnLabel(mx.n)]);
+        .concat([t.p,t.a,t.l,_pct(t.a,t.p+t.a+t.l),_warnLabel(mx.n)+(mx.n?' ('+fmtPct(mx.pct)+')':'')]);
     }), {head:col, headH:40, style:function(i,c,v,row){
-      if(c>=4 && c<4+ns){ return v ? (_warnXL(v)||{}) : {fg:'CBD5E1'}; }
+      if(c>=4 && c<4+ns){ return v ? (_warnXL(lvOf(ids[i].id,subs[c-4]))||{}) : {fg:'CBD5E1'}; }
       if(c===4+ns) return {fg:C.p,b:1}; if(c===5+ns) return {fg:C.a,b:1}; if(c===6+ns) return {fg:C.l,b:1};
-      if(c===8+ns){ const n=v==='تجاوز الحد'?4:v==='انذار نهائي'?3:v==='انذار اول'?2:v==='تنبيه'?1:0; return _warnXL(n); }
+      if(c===8+ns){ const n=/^تجاوز/.test(v)?4:/^انذار نهائي/.test(v)?3:/^انذار اول/.test(v)?2:/^تنبيه/.test(v)?1:0; return _warnXL(n); }
       return null; }});
     // السجل اليومي
     sh.section('📅 السجل اليومي للمحاضرات', col, 'كل محاضرة في صف واحد: التاريخ واليوم والمادة والكروب وأسماء الغائبين والمجازين والحاضرين');
@@ -6353,14 +6445,15 @@ function adIndex(){
   (state.stages||[]).forEach(function(s){ ix.sg.set(s.id,s); });
   (state.groups||[]).forEach(function(g){ ix.gr.set(g.id,g); });
   (state.subjects||[]).forEach(function(s){ ix.sb.set(s.id,s); });
-  (state.attendance||[]).forEach(function(r){ if(r.status==='absent'){ const k=r.studentId+'_'+r.subjectId; ix.abs.set(k,(ix.abs.get(k)||0)+1); } });
-  ix.abs.forEach(function(n,k){ const p=k.split('_'), sid=+p[0], sub=+p[1]; const c=ix.maxAbs.get(sid); if(!c || n>c.n) ix.maxAbs.set(sid,{n:n,sub:sub}); });
+  // ix.abs: (طالب_مادة) ← {lv, pct, h, …} · ix.maxAbs: أعلى إنذار للطالب (n = مستوى الإنذار 0..4)
+  ix.abs=warnCompute(state.attendance);
+  ix.abs.forEach(function(x){ const c=ix.maxAbs.get(x.sid); if(!c || x.lv>c.n || (x.lv===c.n && x.pct>c.pct)) ix.maxAbs.set(x.sid,{n:x.lv, sub:x.sub, pct:x.pct, info:x}); });
   return ix;
 }
 function _adWarnOk(ix, sid){
   const w=AD.f.warn; if(!w) return true;
   let ok=false;
-  ix.abs.forEach(function(n,k){ if(ok) return; if(+k.split('_')[0]!==sid) return; if(w==='any'?n>=1:(w==='4'?n>=4:n===+w)) ok=true; });
+  ix.abs.forEach(function(x){ if(ok) return; if(x.sid!==sid) return; if(_wMatch(w,x.lv)) ok=true; });
   return ok;
 }
 function adFiltered(ix){
@@ -6371,7 +6464,7 @@ function adFiltered(ix){
   if(q){ nameOk=new Set(); ix.st.forEach(function(s){ if(String(s.name).toLowerCase().indexOf(q)>=0 || String(s.num||'')===q) nameOk.add(s.id); }); }
   if(f.warn){
     warnOk=new Set(); const w=f.warn;
-    ix.abs.forEach(function(n,k){ if(w==='any'?n>=1:(w==='4'?n>=4:n===+w)) warnOk.add(+k.split('_')[0]); });
+    ix.abs.forEach(function(x){ if(_wMatch(w,x.lv)) warnOk.add(x.sid); });
   }
   return (state.attendance||[]).filter(function(r){
     if(stage && r.stageId!==stage) return false;
@@ -6500,7 +6593,7 @@ function adFilterText(ix){
 // ===== مكوّنات =====
 function _adN(p,a,l){ return '<span class="ad-n p" title="حضور">✓ '+p+'</span><span class="ad-n a" title="غياب">✕ '+a+'</span>'+(l?'<span class="ad-n l" title="مجاز">🏖 '+l+'</span>':''); }
 function _adMeter(p,a,l){ const t=p+a+l||1; return '<div class="ad-meter"><i class="mp" style="width:'+(p/t*100)+'%"></i><i class="ml" style="width:'+(l/t*100)+'%"></i><i class="ma" style="width:'+(a/t*100)+'%"></i></div>'; }
-function _adWarnBadge(n){ return n ? warnBadgeHTML(n) : ''; }
+function _adWarnBadge(m){ return (m && typeof m==='object') ? warnBadgeHTML(m.info||m) : ''; }
 function _adPctColor(x){ return x>0.25?'var(--absent)':x>0.15?'var(--accent4)':'var(--present)'; }
 function _adSessTitle(ix,s){ const sb=ix.sb.get(s.subjectId); return (sb?(sb.type==='practical'?'🔬 ':'📖 ')+sb.name:'؟'); }
 function _adSessSub(s){ const d=_dt(s.at); return esc(_stageName(s.stageId))+' · '+esc(_groupName(s.groupId))+' · '+d.day+' '+d.date+' · '+d.time; }
@@ -6545,24 +6638,24 @@ function adHomeHTML(ix,recs,agg){
   h+='</div></div>';
   // أحدث المحاضرات + الأكثر غياباً
   const sess=[...agg.sess.values()].sort(function(a,b){return b.at-a.at;}).slice(0,8);
-  const top=scope.map(function(s){ const m=ix.maxAbs.get(s.id); return {s:s, m:m}; }).filter(function(x){return x.m && x.m.n>0;})
-    .sort(function(a,b){ return b.m.n-a.m.n || String(a.s.name).localeCompare(String(b.s.name),'ar'); }).slice(0,8);
+  const top=scope.map(function(s){ const m=ix.maxAbs.get(s.id); return {s:s, m:m}; }).filter(function(x){return x.m && x.m.pct>0;})
+    .sort(function(a,b){ return b.m.pct-a.m.pct || String(a.s.name).localeCompare(String(b.s.name),'ar'); }).slice(0,8);
   h+='<div class="ad-grid2"><div class="ad-card"><div class="ad-card-h"><h3>🕐 أحدث المحاضرات</h3><button class="ad-link" onclick="adSetTab(\'records\')">عرض الكل ←</button></div><div class="ad-list">';
   if(!sess.length) h+=_adEmpty('📋','لا توجد محاضرات مسجّلة');
   sess.forEach(function(s){ h+='<div class="ad-item" onclick="openAdSession(\''+s.sk+'\')"><div class="ad-item-main"><div class="ad-item-title">'+esc(_adSessTitle(ix,s))+'</div><div class="ad-item-sub">'+_adSessSub(s)+'</div></div><div class="ad-mini">'+_adN(s.p,s.a,s.l)+'</div></div>'; });
   h+='</div></div><div class="ad-card"><div class="ad-card-h"><h3>📉 الأكثر غياباً</h3><button class="ad-link" onclick="adSetTab(\'warnings\')">الإنذارات ←</button></div><div class="ad-list">';
   if(!top.length) h+=_adEmpty('🎉','لا توجد غيابات');
-  top.forEach(function(x){ const sb=ix.sb.get(x.m.sub); h+='<div class="ad-item" onclick="openAdStudent('+x.s.id+')"><div class="ad-avatar">'+(x.s.num||'•')+'</div><div class="ad-item-main"><div class="ad-item-title">'+esc(x.s.name)+'</div><div class="ad-item-sub">'+esc(_stageName(x.s.stageId))+' · '+esc(sb?sb.name:'')+'</div></div>'+_adWarnBadge(x.m.n)+'</div>'; });
+  top.forEach(function(x){ const sb={name:x.m.info.unit.name}; h+='<div class="ad-item" onclick="openAdStudent('+x.s.id+')"><div class="ad-avatar">'+(x.s.num||'•')+'</div><div class="ad-item-main"><div class="ad-item-title">'+esc(x.s.name)+'</div><div class="ad-item-sub">'+esc(_stageName(x.s.stageId))+' · '+esc(sb?sb.name:'')+'</div></div>'+_adWarnBadge(x.m.n)+'</div>'; });
   h+='</div></div></div>';
   return h;
 }
 
 // ===== الطلبة =====
 function adStudentsHTML(ix,agg){
-  const list=adScopeStudents(ix,agg).map(function(s){ const p=agg.per.get(s.id)||{p:0,a:0,l:0}; const t=p.p+p.a+p.l; const m=ix.maxAbs.get(s.id); return {s:s, p:p, t:t, pct:t?p.a/t:0, m:m?m.n:0}; });
+  const list=adScopeStudents(ix,agg).map(function(s){ const p=agg.per.get(s.id)||{p:0,a:0,l:0}; const t=p.p+p.a+p.l; const m=ix.maxAbs.get(s.id); return {s:s, p:p, t:t, pct:t?p.a/t:0, m:m?m.n:0, mp:m?m.pct:0, mi:m||null}; });
   const stIdx=new Map(orderedStages().map(function(s,i){return [s.id,i];}));
   const srt={
-    abs:function(a,b){ return b.m-a.m || b.p.a-a.p.a || String(a.s.name).localeCompare(String(b.s.name),'ar'); },
+    abs:function(a,b){ return b.m-a.m || b.mp-a.mp || b.p.a-a.p.a || String(a.s.name).localeCompare(String(b.s.name),'ar'); },
     name:function(a,b){ return String(a.s.name).localeCompare(String(b.s.name),'ar'); },
     num:function(a,b){ return ((stIdx.get(a.s.stageId)||0)-(stIdx.get(b.s.stageId)||0)) || ((a.s.groupId||0)-(b.s.groupId||0)) || ((parseInt(a.s.num)||1e9)-(parseInt(b.s.num)||1e9)); }
   };
@@ -6577,7 +6670,7 @@ function adStudentsHTML(ix,agg){
       +'<div class="ad-item-main"><div class="ad-item-title">'+esc(x.s.name)+(x.s.graduated?' <small class="ad-muted">🎓 خريج</small>':'')+'</div><div class="ad-item-sub">'+esc(_stageName(x.s.stageId)||'—')+' · '+esc(_groupName(x.s.groupId))+'</div></div>'
       +'<div class="ad-mini ad-hide-s">'+_adN(x.p.p,x.p.a,x.p.l)+'</div>'
       +'<div class="ad-pct"><b style="color:'+_adPctColor(x.pct)+'">'+Math.round(x.pct*100)+'%</b><small>غياب</small></div>'
-      +'<div class="ad-wb">'+(_adWarnBadge(x.m)||'<span class="ad-muted">—</span>')+'</div></div>';
+      +'<div class="ad-wb">'+(_adWarnBadge(x.mi)||'<span class="ad-muted">—</span>')+'</div></div>';
   });
   h+='</div>';
   if(list.length>AD.lim.students) h+='<button class="ad-btn ad-more" onclick="AD.lim.students+=100;renderAdmin()">عرض المزيد ('+(list.length-AD.lim.students)+')</button>';
@@ -6614,31 +6707,34 @@ function adToggleSess(sk){ AD.open[sk]=!AD.open[sk]; const el=document.getElemen
 function adWarnPairs(ix){
   const f=AD.f, q=toLatinDigits(f.q).trim().toLowerCase(), sid=+f.stage||0, gid=f.group===''?null:+f.group, sub=+f.subject||0;
   const out=[];
-  ix.abs.forEach(function(n,k){
-    const p=k.split('_'), st=ix.st.get(+p[0]), sb=ix.sb.get(+p[1]);
+  ix.abs.forEach(function(x){
+    if(x.lv<1) return;                                   // تحت حد التنبيه
+    const st=ix.st.get(x.sid), sb=ix.sb.get(x.sub);
     if(!st || st.graduated) return;
-    if(sid && (sb?sb.stageId:st.stageId)!==sid) return;
+    if(sid && x.unit.stageId!==sid) return;
     if(gid!==null && !_stInGroup(st,gid)) return;
-    if(sub && +p[1]!==sub) return;
-    if(f.type && ((sb&&sb.type)||'theoretical')!==f.type) return;
+    if(sub && x.unit.ids.indexOf(sub)<0) return;
+    if(f.type==='practical' && !x.unit.pr) return;
+    if(f.type==='theoretical' && !x.unit.th) return;
     if(q && String(st.name).toLowerCase().indexOf(q)<0 && String(st.num||'')!==q) return;
-    if(f.warn && !(f.warn==='any'?n>=1:(f.warn==='4'?n>=4:n===+f.warn))) return;
-    out.push({st:st, sb:sb, n:n});
+    if(f.warn && !_wMatch(f.warn,x.lv)) return;
+    out.push({st:st, sb:sb, n:x.lv, info:x});
   });
   return out;
 }
 function adWarningsHTML(ix){
   const pairs=adWarnPairs(ix);
-  const lv=[[4,'🚫 تجاوز الحد','4 غيابات فأكثر في المادة'],[3,'🔴 انذار نهائي','3 غيابات'],[2,'🟠 انذار اول','غيابان'],[1,'⚠️ تنبيه','غياب واحد']];
+  const wc=warnCfg();
+  const lv=[[4,'🚫 تجاوز الحد','أكثر من '+wc.t3+'%'],[3,'🔴 انذار نهائي',wc.t3+'%'],[2,'🟠 انذار اول','من '+wc.t2+'% إلى أقل من '+wc.t3+'%'],[1,'⚠️ تنبيه','من '+wc.t1+'% إلى أقل من '+wc.t2+'%']];
   let h='<div class="ad-toolbar"><h2>⚠️ الإنذارات <span class="ad-count">'+pairs.length+'</span></h2><div class="r"><button class="ad-btn amber" onclick="exportWarningsExcel()">📥 تحميل المنذَرين</button><button class="ad-btn" onclick="printWarningsForm()" title="طباعة على الاستمارة الرسمية">🖨️ <span class="ad-hide-s">طباعة رسمية</span></button></div></div>';
   h+='<div class="ad-warn-sum">'+lv.map(function(l){ const c=pairs.filter(function(p){return l[0]===4?p.n>=4:p.n===l[0];}).length; return '<div class="ad-ws wb-'+l[0]+'"><b>'+c+'</b><span>'+l[1]+'</span></div>'; }).join('')+'</div>';
   if(!pairs.length) return h+_adEmpty('🎉','لا توجد إنذارات ضمن الفلتر الحالي');
   lv.forEach(function(l){
-    const g=pairs.filter(function(p){return l[0]===4?p.n>=4:p.n===l[0];}).sort(function(a,b){ return b.n-a.n || String(a.st.name).localeCompare(String(b.st.name),'ar'); });
+    const g=pairs.filter(function(p){return l[0]===4?p.n>=4:p.n===l[0];}).sort(function(a,b){ return b.info.pct-a.info.pct || String(a.st.name).localeCompare(String(b.st.name),'ar'); });
     if(!g.length) return;
     h+='<div class="ad-card"><div class="ad-card-h"><h3>'+l[1]+' <span class="ad-count">'+g.length+'</span></h3><span class="ad-muted">'+l[2]+'</span></div><div class="ad-list">';
     g.slice(0,300).forEach(function(p){
-      h+='<div class="ad-item" onclick="openAdStudent('+p.st.id+')"><div class="ad-avatar">'+(p.st.num||'•')+'</div><div class="ad-item-main"><div class="ad-item-title">'+esc(p.st.name)+'</div><div class="ad-item-sub">'+esc(_stageName(p.st.stageId))+' · '+esc(_groupName(p.st.groupId))+' · '+(p.sb?(p.sb.type==='practical'?'🔬 ':'📖 ')+esc(p.sb.name):'؟')+'</div></div>'+warnBadgeHTML(p.n)+'</div>';
+      h+='<div class="ad-item" onclick="openAdStudent('+p.st.id+')"><div class="ad-avatar">'+(p.st.num||'•')+'</div><div class="ad-item-main"><div class="ad-item-title">'+esc(p.st.name)+'</div><div class="ad-item-sub">'+esc(_stageName(p.st.stageId))+' · '+esc(_groupName(p.st.groupId))+' · 📖 '+esc(p.info.unit.name)+' · '+esc(warnAbsText(p.info))+'</div></div>'+warnBadgeHTML(p.info)+'</div>';
     });
     h+='</div></div>';
   });
@@ -6741,24 +6837,20 @@ function _printHTML(html,prep){
 // ===== المنذَرون: دمج المواد — طالب واحد + مستوى إنذار واحد + نوع واحد (نظري/عملي) = صف واحد =====
 const _WARN_NAME={4:'تجاوز الحد',3:'انذار نهائي',2:'انذار اول',1:'تنبيه'};
 function _warnLevelOf(n){ return n>=4?4:n; }
-// طالب واحد = كتلة واحدة: كل مواده (حسب الفلتر) تحت اسمه، وأمام كل مادة نوع الإنذار والغيابات وتواريخها
+// طالب واحد = كتلة واحدة: كل مواده (حسب الفلتر) تحت اسمه، وأمام كل مادة نوع الإنذار والغياب والنسبة والتواريخ
 function _warnStudentBlocks(pairs){
   const stIdx=new Map(orderedStages().map(function(s,i){return [s.id,i];}));
-  const dates={};
-  (state.attendance||[]).forEach(function(r){
-    if(r.status!=='absent') return;
-    const k=r.studentId+'_'+r.subjectId; (dates[k]=dates[k]||[]).push(r.savedAt||0);
-  });
   const fmt=function(t){ const d=new Date(t); return d.getDate()+'/'+(d.getMonth()+1); };
   const map=new Map();
   pairs.forEach(function(p){
-    let b=map.get(p.st.id);
+    const x=p.info; let b=map.get(p.st.id);
     if(!b){ b={st:p.st, subs:[]}; map.set(p.st.id,b); }
-    const ds=(dates[p.st.id+'_'+(p.sb?p.sb.id:'')]||[]).slice().sort(function(a,c){return a-c;});
-    b.subs.push({name:p.sb?p.sb.name:'؟', type:(p.sb&&p.sb.type==='practical')?'practical':'theoretical', n:p.n, lv:_warnLevelOf(p.n), dates:ds.map(fmt)});
+    const both=x.unit.th && x.unit.pr;
+    const ds=x.abs.slice().sort(function(a,c){return a.t-c.t;}).map(function(a){ return (both&&a.pr?'ع ':'')+fmt(a.t); });
+    b.subs.push({name:x.unit.name, lv:x.lv, pct:x.pct, both:both, th:x.th, pr:x.pr, h:x.h, n:x.th+x.pr, dates:ds});
   });
   const out=[...map.values()];
-  out.forEach(function(b){ b.subs.sort(function(a,c){ return (c.lv-a.lv) || (a.type===c.type?0:(a.type==='theoretical'?-1:1)) || String(a.name).localeCompare(String(c.name),'ar'); }); });
+  out.forEach(function(b){ b.subs.sort(function(a,c){ return (c.pct-a.pct) || String(a.name).localeCompare(String(c.name),'ar'); }); });
   out.sort(function(a,c){ return ((stIdx.get(a.st.stageId)||0)-(stIdx.get(c.st.stageId)||0)) || ((a.st.groupId||0)-(c.st.groupId||0)) || ((parseInt(a.st.num)||1e9)-(parseInt(c.st.num)||1e9)) || String(a.st.name).localeCompare(String(c.st.name),'ar'); });
   return out;
 }
@@ -6806,7 +6898,9 @@ function _formPagesDoc(title){
   +'table.f-t tbody.stu:nth-of-type(even) td{background:rgba(0,0,0,.035)}'
   +'table.f-t td.c{vertical-align:middle}table.f-t td.n{vertical-align:middle;font-size:10.5pt}'
   +'table.f-t td.lv{font-weight:800;font-size:9.5pt}'
-  +'table.f-t td.lv4{background:#7f1d1d!important;color:#fff}table.f-t td.lv3{background:#fee2e2!important;color:#991b1b}'
+  +'table.f-t td.lv4{background:#7f1d1d!important;color:#fff}table.f-t td.lv3{background:#dc2626!important;color:#fff}'
+  +'table.f-t td.ab{font-size:9.5pt;line-height:1.35}table.f-t td.ab small{display:block;font-size:8.5pt;color:#333}'
+  +'.f-rule{text-align:center;font-size:9pt;color:#333;margin:-1.5mm 0 3mm}'
   +'table.f-t td.lv2{background:#ffedd5!important;color:#9a3412}table.f-t td.lv1{background:#fef3c7!important;color:#92400e}'
   +'table.f-t td.dt{font-size:9pt;line-height:1.5}'
   +'.f-end{margin-top:auto;padding-top:4mm}'
@@ -6875,20 +6969,22 @@ const _FORM_END='<div class="f-sign">الأستاذ الدكتور<br>مشتاق
 function printWarningsForm(){
   const ix=adIndex(), pairs=adWarnPairs(ix);
   if(!pairs.length){ toast('لا يوجد طلاب لديهم تنبيه أو إنذار ضمن الفلتر الحالي','e'); return; }
-  const B=_warnStudentBlocks(pairs);
+  const B=_warnStudentBlocks(pairs), wc=warnCfg();
   const hasG=B.some(function(b){ return !!b.st.groupId; });
   const intro='<div class="f-title">م / قائمة الطلبة المنذَرين بسبب الغياب</div>'
-    +'<div class="f-sub">السنة الدراسية '+esc(academicYear())+' · '+esc(adFilterText(ix))+' · عدد الطلبة: '+B.length+'</div>';
-  const colgroup='<colgroup><col style="width:10mm"><col style="width:'+(hasG?31:37)+'mm"><col style="width:19mm">'+(hasG?'<col style="width:16mm">':'')
-    +'<col><col style="width:20mm"><col style="width:11mm"><col style="width:12mm"><col style="width:'+(hasG?28:32)+'mm"></colgroup>';
-  const head='<tr><th>ت</th><th>اسم الطالب</th><th>المرحلة</th>'+(hasG?'<th>الكروب</th>':'')+'<th>المادة</th><th>نوع الإنذار</th><th>النوع</th><th>الغيابات</th><th>تواريخ الغياب</th></tr>';
+    +'<div class="f-sub">السنة الدراسية '+esc(academicYear())+' · '+esc(adFilterText(ix))+' · عدد الطلبة: '+B.length+'</div>'
+    +'<div class="f-rule">النسبة = ساعات الغياب ÷ ساعات المادة في السنة ('+wc.weeks+' أسبوعاً) · النظري ساعة والعملي ساعتان · ع = غياب عملي</div>';
+  const colgroup='<colgroup><col style="width:9mm"><col style="width:'+(hasG?29:34)+'mm"><col style="width:18mm">'+(hasG?'<col style="width:15mm">':'')
+    +'<col><col style="width:19mm"><col style="width:20mm"><col style="width:13mm"><col style="width:'+(hasG?27:32)+'mm"></colgroup>';
+  const head='<tr><th>ت</th><th>اسم الطالب</th><th>المرحلة</th>'+(hasG?'<th>الكروب</th>':'')+'<th>المادة</th><th>نوع الإنذار</th><th>الغياب</th><th>النسبة</th><th>تواريخ الغياب</th></tr>';
   const units=B.map(function(b,i){
     const k=b.subs.length;
     return '<tbody class="stu">'+b.subs.map(function(s,j){
+      const abs=s.both ? ('نظري '+s.th+' + عملي '+s.pr+'<small>'+hoursTxt(s.h)+'</small>') : String(s.n);
       return '<tr>'+(j===0
           ? '<td rowspan="'+k+'" class="c">'+(i+1)+'</td><td rowspan="'+k+'" class="n">'+esc(b.st.name)+'</td><td rowspan="'+k+'" class="c">'+esc(_stageName(b.st.stageId)||'—')+'</td>'+(hasG?'<td rowspan="'+k+'" class="c">'+esc(b.st.groupId?_groupName(b.st.groupId):'—')+'</td>':'')
           : '')
-        +'<td class="w">'+esc(s.name)+'</td><td class="lv lv'+s.lv+'">'+_WARN_NAME[s.lv]+'</td><td>'+(s.type==='practical'?'عملي':'نظري')+'</td><td><b>'+s.n+'</b></td><td class="dt">'+esc(s.dates.join('\u200F، '))+'</td></tr>';
+        +'<td class="w">'+esc(s.name)+'</td><td class="lv lv'+s.lv+'">'+_WARN_NAME[s.lv]+'</td><td class="ab">'+abs+'</td><td><b>'+fmtPct(s.pct)+'</b></td><td class="dt">'+esc(s.dates.join('‏، '))+'</td></tr>';
     }).join('')+'</tbody>';
   });
   _printHTML(_formPagesDoc('م / قائمة الطلبة المنذَرين بسبب الغياب'), function(win){ _formPaginate(win.document,{intro:intro, table:{colgroup:colgroup, head:head, units:units}, end:_FORM_END}); });
@@ -6907,7 +7003,7 @@ function openAdStudent(sid){
   const subIds=Object.keys(by);
   h+='<div class="promo-sec-title">حسب المادة</div>';
   if(!subIds.length) h+='<p class="ad-muted">لا توجد سجلات لهذا الطالب.</p>';
-  else h+='<div class="ad-table-wrap"><table class="ad-table"><thead><tr><th>المادة</th><th>حضور</th><th>غياب</th><th>مجاز</th><th>الإنذار</th></tr></thead><tbody>'+subIds.map(function(id){ const s=ix.sb.get(+id), x=by[id]; return '<tr><td>'+(s?(s.type==='practical'?'🔬 ':'📖 ')+esc(s.name):'؟')+'</td><td class="c-p">'+x.p+'</td><td class="c-a">'+x.a+'</td><td class="c-l">'+x.l+'</td><td>'+(warnBadgeHTML(x.a)||'—')+'</td></tr>'; }).join('')+'</tbody></table></div>';
+  else h+='<div class="ad-table-wrap"><table class="ad-table"><thead><tr><th>المادة</th><th>حضور</th><th>غياب</th><th>مجاز</th><th>الإنذار</th></tr></thead><tbody>'+subIds.map(function(id){ const s=ix.sb.get(+id), x=by[id]; return '<tr><td>'+(s?(s.type==='practical'?'🔬 ':'📖 ')+esc(s.name):'؟')+'</td><td class="c-p">'+x.p+'</td><td class="c-a">'+x.a+'</td><td class="c-l">'+x.l+'</td><td>'+(warnBadgeHTML(s?ix.abs.get(st.id+'_'+warnUnitKey(s)):null)||'—')+'</td></tr>'; }).join('')+'</tbody></table></div>';
   if(recs.length){
     h+='<div class="promo-sec-title">السجل (الأحدث أولاً) — يمكنك تعديل الحالة</div><div class="ad-det-recs">'+recs.slice(0,120).map(function(r){ const s=ix.sb.get(r.subjectId), d=_dt(r.savedAt); return '<div class="ad-rec"><span class="ad-rec-n">'+(s?esc(s.name):'؟')+'<small>'+d.day+' '+d.date+' · '+d.time+'</small></span>'+_adStatusSel(r)+'</div>'; }).join('')+'</div>';
   }
@@ -6965,24 +7061,25 @@ function exportAdminExcel(){
   const sh=new XL.Sheet(n), T=agg.T, tot=T.p+T.a+T.l;
   sh.banner('تقرير الحضور والغياب — كلية طب الأسنان / جامعة ذي قار', 'السنة الدراسية '+academicYear()+' · '+adFilterText(ix)+' · تاريخ التصدير '+_today());
   sh.stats([['الطلبة',studs.length,C.sky],['المحاضرات',agg.sess.size,C.indigo],['حضور',T.p,C.p],['غياب',T.a,C.a],['مجاز',T.l,C.l],['نسبة الغياب',(tot?Math.round(T.a/tot*100):0)+'%',C.rose]]);
-  sh.section('🧑‍🎓 ملخص الطلبة', C.indigo, perSub&&ns?'أعمدة المواد = عدد الغيابات (اللون حسب مستوى الإنذار)':'');
+  sh.section('🧑‍🎓 ملخص الطلبة', C.indigo, perSub&&ns?'أعمدة المواد = عدد الغيابات (اللون حسب مستوى الإنذار بالنسبة المئوية للمادة)':'');
   const cols=[{t:'#',h:'center'},{t:'الرقم',h:'center'},{t:'اسم الطالب',b:1,min:24,max:34},{t:'المرحلة / الكروب',max:26}]
     .concat(subs.map(function(s){return {t:s.name+(s.type==='practical'?' (عملي)':''),h:'center',max:14,min:9};}))
-    .concat([{t:'حضور',h:'center'},{t:'غياب',h:'center'},{t:'مجاز',h:'center'},{t:'نسبة الغياب',h:'center',nf:'0%'},{t:'الإنذار',h:'center',min:12},{t:'المادة الأعلى غياباً',max:24}]);
+    .concat([{t:'حضور',h:'center'},{t:'غياب',h:'center'},{t:'مجاز',h:'center'},{t:'نسبة الغياب',h:'center',nf:'0%'},{t:'الإنذار',h:'center',min:12},{t:'المادة الأعلى نسبة',max:24}]);
+  const lvAt=function(st,s){ const x=ix.abs.get(st.id+'_'+warnUnitKey(s)); return x?x.lv:0; };
   sh.table(cols, studs.map(function(st,i){
     const p=agg.per.get(st.id)||{p:0,a:0,l:0,sub:{}}, t=p.p+p.a+p.l, m=ix.maxAbs.get(st.id)||{n:0,sub:0}, ms=ix.sb.get(m.sub);
     return [i+1, st.num||'', st.name, (_stageName(st.stageId)||'—')+' / '+_groupName(st.groupId)]
       .concat(subs.map(function(s){ return (p.sub[s.id]||{}).a||0; }))
-      .concat([p.p,p.a,p.l,_pct(p.a,t),_warnLabel(m.n),m.n?(ms?ms.name:'؟'):'—']);
+      .concat([p.p,p.a,p.l,_pct(p.a,t),_warnLabel(m.n)+(m.n?' ('+fmtPct(m.pct)+')':''),m.n?(m.info?m.info.unit.name:(ms?ms.name:'؟')):'—']);
   }), {head:C.indigo, headH:ns?40:28, style:function(i,c,v,row){
-    if(c>=4 && c<4+ns) return v?(_warnXL(v)||{}):{fg:'CBD5E1'};
+    if(c>=4 && c<4+ns) return v?(_warnXL(lvAt(studs[i],subs[c-4]))||{}):{fg:'CBD5E1'};
     if(c===4+ns) return {fg:C.p,b:1}; if(c===5+ns) return {fg:C.a,b:1}; if(c===6+ns) return {fg:C.l,b:1};
-    if(c===8+ns){ const k=v==='تجاوز الحد'?4:v==='انذار نهائي'?3:v==='انذار اول'?2:v==='تنبيه'?1:0; return _warnXL(k); }
+    if(c===8+ns){ const k=/^تجاوز/.test(v)?4:/^انذار نهائي/.test(v)?3:/^انذار اول/.test(v)?2:/^تنبيه/.test(v)?1:0; return _warnXL(k); }
     return null; }});
   sh.section('📋 السجلات التفصيلية', C.slate, 'مرتبة حسب التاريخ — الأحدث أولاً');
   const sorted=recs.slice().sort(function(a,b){ return (b.savedAt||0)-(a.savedAt||0); });
   sh.table([{t:'#',h:'center'},{t:'التاريخ',h:'center'},{t:'اليوم',h:'center'},{t:'الوقت',h:'center'},{t:'اسم الطالب',b:1,min:24,max:34},{t:'المرحلة / الكروب',max:26},{t:'المادة',max:24},{t:'النوع',h:'center'},{t:'الحالة',h:'center'},{t:'الإنذار في المادة',h:'center',min:12}],
-    sorted.map(function(r,i){ const d=_dt(r.savedAt), st=ix.st.get(r.studentId), s=ix.sb.get(r.subjectId), n=ix.abs.get(r.studentId+'_'+r.subjectId)||0;
+    sorted.map(function(r,i){ const d=_dt(r.savedAt), st=ix.st.get(r.studentId), s=ix.sb.get(r.subjectId), wx=s?ix.abs.get(r.studentId+'_'+warnUnitKey(s)):null, n=wx?wx.lv:0;
       return [i+1, d.date, d.day, d.time, st?st.name:'؟', (_stageName(r.stageId)||'—')+' / '+_groupName(r.groupId), s?s.name:'؟', _subType(s), ST_AR[r.status], _warnLabel(n)]; }),
     {head:C.slate, style:function(i,c,v){
       if(c===8) return _stXL(v==='غائب'?'absent':v==='مجاز'?'leave':'present');
@@ -6994,15 +7091,16 @@ function exportAdminExcel(){
 }
 function exportWarningsExcel(){
   if(!_xlsxOK()) return;
-  const ix=adIndex(), pairs=adWarnPairs(ix), C=XL.C;
+  const ix=adIndex(), pairs=adWarnPairs(ix), C=XL.C, wc=warnCfg();
   if(!pairs.length){ toast('لا يوجد طلاب لديهم تنبيه أو إنذار','e'); return; }
   const B=_warnStudentBlocks(pairs);
   const hasG=B.some(function(b){ return !!b.st.groupId; });
-  const cols=['ت','اسم الطالب','المرحلة'].concat(hasG?['الكروب']:[]).concat(['المادة','نوع الإنذار','النوع','الغيابات','تواريخ الغياب']);
-  const W=[5,26,15].concat(hasG?[11]:[]).concat([30,14,8,10,24]);
+  const cols=['ت','اسم الطالب','المرحلة'].concat(hasG?['الكروب']:[]).concat(['المادة','نوع الإنذار','الغياب','النسبة','تواريخ الغياب']);
+  const W=[5,26,15].concat(hasG?[11]:[]).concat([26,14,18,9,26]);
   const nC=cols.length, oS=hasG?4:3;   // أول عمود خاص بالمادة
   const sh=new XL.Sheet(nC);
   sh.banner('قائمة الطلبة المنذَرين — كلية طب الأسنان / جامعة ذي قار', 'السنة الدراسية '+academicYear()+' · '+adFilterText(ix)+' · عدد الطلبة: '+B.length+' · '+_today(), C.amber);
+  sh.note('النسبة = ساعات الغياب ÷ ساعات المادة في السنة ('+wc.weeks+' أسبوعاً) · النظري ساعة والعملي ساعتان · ع = غياب عملي · تنبيه '+wc.t1+'% · انذار اول '+wc.t2+'% · انذار نهائي '+wc.t3+'% · تجاوز الحد أكثر من '+wc.t3+'%');
   const head=XL.S({bg:C.head,fg:'FFFFFF',b:1,sz:11,h:'center',wrap:1,bc:'475569'});
   cols.forEach(function(t,c){ sh.put(sh.r,c,t,head); });
   sh.rows[sh.r]={hpt:26}; const hr=sh.r; sh.r++;
@@ -7013,13 +7111,14 @@ function exportWarningsExcel(){
       const r=sh.r;
       const lead=[i+1, b.st.name, _stageName(b.st.stageId)||'—'].concat(hasG?[b.st.groupId?_groupName(b.st.groupId):'—']:[]);
       lead.forEach(function(v,c){ sh.put(r,c,j===0?v:'', c===1?st({b:1,h:'right'}):st()); });
-      const wx=_warnXL(s.lv)||{};
+      const abs=s.both ? ('نظري '+s.th+' + عملي '+s.pr+'\n'+hoursTxt(s.h)) : s.n;
+      const dts=s.dates.join('‏، ');
       sh.put(r,oS,s.name,st({h:'right'}));
-      sh.put(r,oS+1,_WARN_NAME[s.lv],st(wx));
-      sh.put(r,oS+2,s.type==='practical'?'عملي':'نظري',st());
-      sh.put(r,oS+3,s.n,st({b:1}));
-      sh.put(r,oS+4,s.dates.join('\u200F، '),st({sz:10}));
-      const lines=Math.max(1, Math.ceil(String(s.name).length/28), Math.ceil(s.dates.join('، ').length/22));
+      sh.put(r,oS+1,_WARN_NAME[s.lv],st(_warnXL(s.lv)||{}));
+      sh.put(r,oS+2,abs,st());
+      sh.put(r,oS+3,Math.round(s.pct*100)/10000,st({b:1,nf:'0.00%'}));
+      sh.put(r,oS+4,dts,st({sz:10}));
+      const lines=Math.max(s.both?2:1, Math.ceil(String(s.name).length/24), Math.ceil(dts.length/24));
       sh.rows[r]={hpt:Math.max(20, 15*lines+5)};
       sh.r++;
     });
@@ -7032,6 +7131,29 @@ function exportWarningsExcel(){
   wb.Workbook.Names=[{Name:'_xlnm.Print_Titles', Sheet:0, Ref:"'"+nm+"'!$"+(hr+1)+":$"+(hr+1)}];
   XL.saveFit(wb,'الطلبة المنذَرون '+_today()+'.xlsx');
   toast('تم تصدير قائمة المنذَرين ✅');
+}
+
+// ===== إعدادات حساب الإنذارات (لوحة المعاون) =====
+function openWarnSettings(){
+  const c=warnCfg(), th=c.weeks, pr=c.weeks*3;
+  const ex=function(h,t){ return (h/t*100).toFixed(2).replace(/\.?0+$/,'')+'%'; };
+  openModal('📊 حساب الإنذارات بالنسبة المئوية',
+    '<div class="info-box" style="line-height:1.8">النسبة = ساعات غياب الطالب في المادة ÷ ساعات المادة في السنة.<br>المادة النظرية: <b>ساعة</b> في الأسبوع · المادة التي لها عملي: النظري <b>ساعة</b> + العملي <b>ساعتان</b> وتُحسب <b>مادة واحدة</b>. المجاز لا يُحسب.</div>'
+    +'<div class="form-group" style="margin-top:12px"><label class="form-label">عدد أسابيع الدوام في السنة (من الشهر 10 إلى الشهر 6)</label><input class="form-input" id="wc-weeks" type="number" min="1" max="52" value="'+c.weeks+'" dir="ltr" style="text-align:center"></div>'
+    +'<div class="wc-grid">'
+      +'<label>⚠️ تنبيه من %<input class="form-input" id="wc-t1" type="number" step="0.5" min="0.5" value="'+c.t1+'" dir="ltr"></label>'
+      +'<label>🟠 انذار اول من %<input class="form-input" id="wc-t2" type="number" step="0.5" min="0.5" value="'+c.t2+'" dir="ltr"></label>'
+      +'<label>🔴 انذار نهائي عند %<input class="form-input" id="wc-t3" type="number" step="0.5" min="0.5" value="'+c.t3+'" dir="ltr"></label>'
+    +'</div>'
+    +'<div class="ad-muted" style="margin-top:8px;line-height:1.8">ما فوق نسبة الانذار النهائي = 🚫 تجاوز الحد.<br>حالياً: غياب نظري في مادة نظرية فقط = '+ex(1,th)+' · في مادة لها عملي: غياب نظري = '+ex(1,pr)+' وغياب عملي = '+ex(2,pr)+'</div>',
+    function(){
+      const g=function(id){ return parseFloat(toLatinDigits(document.getElementById(id).value)); };
+      const w=Math.round(g('wc-weeks')), t1=g('wc-t1'), t2=g('wc-t2'), t3=g('wc-t3');
+      if(!(w>=1 && w<=52)){ toast('عدد الأسابيع بين 1 و 52','e'); return; }
+      if(!(t1>0 && t2>t1 && t3>t2 && t3<=100)){ toast('يجب أن تكون النسب تصاعدية: تنبيه < انذار اول < انذار نهائي','e'); return; }
+      _meta().warn={weeks:w, t1:t1, t2:t2, t3:t3};
+      save(); closeModal(); renderAdmin(); toast('تم حفظ إعدادات الإنذارات ✅');
+    }, '💾 حفظ');
 }
 
 // ===== حذف محاضرة واحدة — بمعرّفها الفريد فقط، فلا تُمسّ أي محاضرة أخرى ولو بنفس المادة واليوم =====
