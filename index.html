@@ -3865,6 +3865,10 @@ function warnLevel(pct){
   return 0;
 }
 function fmtPct(p){ const v=Math.round((+p||0)*100)/100; return String(v)+'%'; }
+// أول غياب يصل أو يتجاوز حد الانذار النهائي = انذار نهائي · ما بعده = تجاوز الحد (prevPct = النسبة قبل آخر غياب)
+function warnLevelSeq(pct,prevPct){ const lv=warnLevel(pct); return (lv===4 && warnLevel(prevPct)<3) ? 3 : lv; }
+// النسبة المعروضة فقط (الشاشة والطباعة والإكسل) — الحساب لا يتغير: تنبيه = t1 · انذار اول = t2 · انذار نهائي = t3 · غير ذلك = النسبة الحقيقية
+function warnShowPct(lv,pct){ const c=warnCfg(); return lv===1?c.t1 : lv===2?c.t2 : lv===3?c.t3 : pct; }
 // يحسب لكل (طالب، مادة) ساعات الغياب ونسبتها ومستوى الإنذار — المجاز لا يُحسب
 function warnCompute(recs){
   const W=warnUnits(), out=new Map();
@@ -3879,7 +3883,12 @@ function warnCompute(recs){
     x.h+=pr?2:1; if(pr) x.pr++; else x.th++;
     x.abs.push({t:r.savedAt||0, pr:pr});
   });
-  out.forEach(function(x){ x.pct=x.unit.total ? x.h/x.unit.total*100 : 0; x.lv=warnLevel(x.pct); });
+  out.forEach(function(x){
+    x.pct=x.unit.total ? x.h/x.unit.total*100 : 0;
+    let last=null; x.abs.forEach(function(a){ if(!last || (a.t||0)>=(last.t||0)) last=a; });
+    const prev=(x.unit.total && last) ? (x.h-(last.pr?2:1))/x.unit.total*100 : 0;
+    x.lv=warnLevelSeq(x.pct, prev);
+  });
   return out;
 }
 // نص الغياب: مادة لها عملي ← «نظري 1 + عملي 3 (7 ساعات)»، غير ذلك ← العدد
@@ -3900,7 +3909,7 @@ function warnInfo(lv){
 function warnBadgeHTML(x){
   if(!x || !(x.pct>0)) return '';
   const w=warnInfo(x.lv);
-  return w ? '<span class="warn-badge '+w.cls+'">'+w.icon+' '+w.label+' ('+fmtPct(x.pct)+')</span>' : '<span class="warn-badge wb-0">'+fmtPct(x.pct)+'</span>';
+  return w ? '<span class="warn-badge '+w.cls+'">'+w.icon+' '+w.label+' ('+fmtPct(warnShowPct(x.lv,x.pct))+')</span>' : '<span class="warn-badge wb-0">'+fmtPct(x.pct)+'</span>';
 }
 
 function getActiveSession(sessKey){
@@ -3925,14 +3934,16 @@ function liveWarn(stId,subjectId,groupId){
       if(a.status!=='absent' || !ids.has(a.subjectId)) return;
       if(act && a.session===act.session && a.subjectId===subjectId && a.groupId===groupId) return;   // الجلسة المفتوحة تُحسب من العلامات الحالية
       const b=W.bySub.get(a.subjectId), pr=!!(b&&b.type==='practical');
-      let v=m.get(a.studentId); if(!v){ v={h:0,th:0,pr:0}; m.set(a.studentId,v); }
+      let v=m.get(a.studentId); if(!v){ v={h:0,th:0,pr:0,lt:-1,lp:false}; m.set(a.studentId,v); }
       v.h+=pr?2:1; if(pr) v.pr++; else v.th++;
+      if((a.savedAt||0)>=v.lt){ v.lt=a.savedAt||0; v.lp=pr; }
     });
     _absMemo={key:key, m:m, total:u?u.total:0, pr:!!(sb&&sb.type==='practical')};
   }
   const M=_absMemo, v=M.m.get(stId)||{h:0,th:0,pr:0}, cur=_marks(sessKey)[stId]==='absent';
   const h=v.h+(cur?(M.pr?2:1):0), pct=M.total?h/M.total*100:0;
-  return {h:h, th:v.th+(cur&&!M.pr?1:0), pr:v.pr+(cur&&M.pr?1:0), pct:pct, lv:warnLevel(pct)};
+  const step=cur?(M.pr?2:1):(v.h?(v.lp?2:1):0), prev=M.total?(h-step)/M.total*100:0;
+  return {h:h, th:v.th+(cur&&!M.pr?1:0), pr:v.pr+(cur&&M.pr?1:0), pct:pct, lv:warnLevelSeq(pct,prev)};
 }
 
 let _attCtx = null;   // {subjectId, groupId, stageId, sessKey}
@@ -6315,7 +6326,7 @@ function buildArchiveAndSave(){
   const mRows=master.map(function(st,i){
     const t=tot.get(st.id)||{p:0,a:0,l:0}, n=t.p+t.a+t.l, mx=maxAbs(st.id), sb=subMap.get(mx.sub);
     const rr=mr0+2+i;
-    return [i+1, st.name, _stageName(st.stageId)||'—', _groupName(st.groupId), st.num||'', st.barcode||('ST-'+String(st.id).padStart(5,'0')), t.p, t.a, t.l, n, _pct(t.a,n), Math.round(mx.pct*100)/10000, _warnLabel(mx.n), mx.pct>0?(mx.name||(sb?sb.name:'؟')):'—',
+    return [i+1, st.name, _stageName(st.stageId)||'—', _groupName(st.groupId), st.num||'', st.barcode||('ST-'+String(st.id).padStart(5,'0')), t.p, t.a, t.l, n, _pct(t.a,n), Math.round(warnShowPct(mx.n,mx.pct)*100)/10000, _warnLabel(mx.n), mx.pct>0?(mx.name||(sb?sb.name:'؟')):'—',
       {f:'IF(LEN(TRIM('+SREF+'))=0,"",IF(ISNUMBER(SEARCH(TRIM('+SREF+'),B'+rr+')),ROW(),""))', v:''}];
   });
   s2.table([{t:'#',h:'center'},{t:'اسم الطالب',b:1,min:24,max:34},{t:'المرحلة'},{t:'الكروب'},{t:'الرقم',h:'center'},{t:'الباركود',h:'center'},{t:'حضور',h:'center'},{t:'غياب',h:'center'},{t:'مجاز',h:'center'},{t:'المجموع',h:'center'},{t:'نسبة الغياب',h:'center',nf:'0%'},{t:'أعلى نسبة بمادة',h:'center',nf:'0.00%'},{t:'الإنذار',h:'center',min:12},{t:'المادة الأعلى نسبة',max:26},{t:'بحث',nofit:1}],
@@ -6360,7 +6371,7 @@ function buildArchiveAndSave(){
     sh.table(sCols, ids.map(function(st,i){
       const t=tot.get(st.id)||{p:0,a:0,l:0}, mx=maxAbs(st.id);
       return [i+1, st.num||'', st.name, _groupName(st.groupId)].concat(subs.map(function(s){ const x=cell(st.id,s.id); return x.a; }))
-        .concat([t.p,t.a,t.l,_pct(t.a,t.p+t.a+t.l),_warnLabel(mx.n)+(mx.n?' ('+fmtPct(mx.pct)+')':'')]);
+        .concat([t.p,t.a,t.l,_pct(t.a,t.p+t.a+t.l),_warnLabel(mx.n)+(mx.n?' ('+fmtPct(warnShowPct(mx.n,mx.pct))+')':'')]);
     }), {head:col, headH:40, style:function(i,c,v,row){
       if(c>=4 && c<4+ns){ return v ? (_warnXL(lvOf(ids[i].id,subs[c-4]))||{}) : {fg:'CBD5E1'}; }
       if(c===4+ns) return {fg:C.p,b:1}; if(c===5+ns) return {fg:C.a,b:1}; if(c===6+ns) return {fg:C.l,b:1};
@@ -6984,7 +6995,7 @@ function printWarningsForm(){
       return '<tr>'+(j===0
           ? '<td rowspan="'+k+'" class="c">'+(i+1)+'</td><td rowspan="'+k+'" class="n">'+esc(b.st.name)+'</td><td rowspan="'+k+'" class="c">'+esc(_stageName(b.st.stageId)||'—')+'</td>'+(hasG?'<td rowspan="'+k+'" class="c">'+esc(b.st.groupId?_groupName(b.st.groupId):'—')+'</td>':'')
           : '')
-        +'<td class="w">'+esc(s.name)+'</td><td class="lv lv'+s.lv+'">'+_WARN_NAME[s.lv]+'</td><td class="ab">'+abs+'</td><td><b>'+fmtPct(s.pct)+'</b></td><td class="dt">'+esc(s.dates.join('‏، '))+'</td></tr>';
+        +'<td class="w">'+esc(s.name)+'</td><td class="lv lv'+s.lv+'">'+_WARN_NAME[s.lv]+'</td><td class="ab">'+abs+'</td><td><b>'+fmtPct(warnShowPct(s.lv,s.pct))+'</b></td><td class="dt">'+esc(s.dates.join('‏، '))+'</td></tr>';
     }).join('')+'</tbody>';
   });
   _printHTML(_formPagesDoc('م / قائمة الطلبة المنذَرين بسبب الغياب'), function(win){ _formPaginate(win.document,{intro:intro, table:{colgroup:colgroup, head:head, units:units}, end:_FORM_END}); });
@@ -7070,7 +7081,7 @@ function exportAdminExcel(){
     const p=agg.per.get(st.id)||{p:0,a:0,l:0,sub:{}}, t=p.p+p.a+p.l, m=ix.maxAbs.get(st.id)||{n:0,sub:0}, ms=ix.sb.get(m.sub);
     return [i+1, st.num||'', st.name, (_stageName(st.stageId)||'—')+' / '+_groupName(st.groupId)]
       .concat(subs.map(function(s){ return (p.sub[s.id]||{}).a||0; }))
-      .concat([p.p,p.a,p.l,_pct(p.a,t),_warnLabel(m.n)+(m.n?' ('+fmtPct(m.pct)+')':''),m.n?(m.info?m.info.unit.name:(ms?ms.name:'؟')):'—']);
+      .concat([p.p,p.a,p.l,_pct(p.a,t),_warnLabel(m.n)+(m.n?' ('+fmtPct(warnShowPct(m.n,m.pct))+')':''),m.n?(m.info?m.info.unit.name:(ms?ms.name:'؟')):'—']);
   }), {head:C.indigo, headH:ns?40:28, style:function(i,c,v,row){
     if(c>=4 && c<4+ns) return v?(_warnXL(lvAt(studs[i],subs[c-4]))||{}):{fg:'CBD5E1'};
     if(c===4+ns) return {fg:C.p,b:1}; if(c===5+ns) return {fg:C.a,b:1}; if(c===6+ns) return {fg:C.l,b:1};
@@ -7116,7 +7127,7 @@ function exportWarningsExcel(){
       sh.put(r,oS,s.name,st({h:'right'}));
       sh.put(r,oS+1,_WARN_NAME[s.lv],st(_warnXL(s.lv)||{}));
       sh.put(r,oS+2,abs,st());
-      sh.put(r,oS+3,Math.round(s.pct*100)/10000,st({b:1,nf:'0.00%'}));
+      sh.put(r,oS+3,Math.round(warnShowPct(s.lv,s.pct)*100)/10000,st({b:1,nf:'0.00%'}));
       sh.put(r,oS+4,dts,st({sz:10}));
       const lines=Math.max(s.both?2:1, Math.ceil(String(s.name).length/24), Math.ceil(dts.length/24));
       sh.rows[r]={hpt:Math.max(20, 15*lines+5)};
