@@ -6717,9 +6717,13 @@ function adToggleSess(sk){ AD.open[sk]=!AD.open[sk]; const el=document.getElemen
 // ===== الإنذارات =====
 function adWarnPairs(ix){
   const f=AD.f, q=toLatinDigits(f.q).trim().toLowerCase(), sid=+f.stage||0, gid=f.group===''?null:+f.group, sub=+f.subject||0;
+  // فلتر التاريخ: الإنذار يُحسب تراكمياً حتى تاريخ «إلى»، ويظهر الطالب فقط إذا كان له غياب في المادة ضمن الفترة «من ← إلى»
+  const from=f.from?new Date(f.from+'T00:00:00').getTime():0, to=f.to?new Date(f.to+'T23:59:59').getTime():0;
+  const src=to ? warnCompute((state.attendance||[]).filter(function(r){ return (r.savedAt||0)<=to; })) : ix.abs;
   const out=[];
-  ix.abs.forEach(function(x){
+  src.forEach(function(x){
     if(x.lv<1) return;                                   // تحت حد التنبيه
+    if((from||to) && !x.abs.some(function(a){ const t=a.t||0; return (!from || t>=from) && (!to || t<=to); })) return;
     const st=ix.st.get(x.sid), sb=ix.sb.get(x.sub);
     if(!st || st.graduated) return;
     if(sid && x.unit.stageId!==sid) return;
