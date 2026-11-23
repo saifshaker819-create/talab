@@ -128,6 +128,8 @@ window.addEventListener('error', function(e){
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" onerror="window._jsQRErr=true"></script>
 <!-- QRCode.js — توليد QR لكل طالب -->
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" onerror="window._qrcodeErr=true"></script>
+<!-- jsPDF — تنزيل باركودات الطلاب كملف PDF -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" onerror="window._jspdfErr=true"></script>
 <script>
 // Fallback إذا فشل تحميل xlsx (لا إنترنت)
 if(typeof XLSX === 'undefined'){
@@ -5483,176 +5485,154 @@ function deleteStudentSettings(id){
   });
 }
 
-// ========== تنزيل باركودات الطلاب المُصفَّين ==========
+// ========== تنزيل باركودات الطلاب المُصفَّين — ملف PDF بصفحات A4 (12 بطاقة في الصفحة، بدون قطع) ==========
 async function downloadFilteredBarcodes(){
   if(typeof QRCode === 'undefined'){
     toast('⚠️ مكتبة QR Code لم تُحمَّل','e'); return;
   }
+  const PDF = window.jspdf && window.jspdf.jsPDF;
+  if(!PDF){ toast('⚠️ مكتبة PDF لم تُحمَّل — تأكد من الاتصال بالإنترنت ثم أعد فتح البرنامج','e'); return; }
 
   // جمع الطلاب الظاهرين حالياً
   const visibleItems = Array.from(document.querySelectorAll('.student-si')).filter(function(el){
     return el.style.display !== 'none';
   });
-
-  if(!visibleItems.length){
-    toast('لا يوجد طلاب لتنزيل باركوداتهم','e'); return;
-  }
+  if(!visibleItems.length){ toast('لا يوجد طلاب لتنزيل باركوداتهم','e'); return; }
 
   // استخراج IDs من الـ onclick
   const studentIds = visibleItems.map(function(el){
     const btn = el.querySelector('.student-barcode-btn');
     if(!btn) return null;
-    const m = btn.getAttribute('onclick').match(/openBarcodeModal\((\d+)\)/);
+    const m = (btn.getAttribute('onclick')||'').match(/openBarcodeModal\((\d+)\)/);
     return m ? parseInt(m[1]) : null;
   }).filter(Boolean).filter(function(v,i,arr){ return arr.indexOf(v)===i; });
 
   const students = studentIds.map(function(id){
     return (state.students||[]).find(function(s){ return s.id===id; });
   }).filter(Boolean);
-
   if(!students.length){ toast('لا يوجد طلاب','e'); return; }
 
-  // إنشاء label تعريفي للفلتر الحالي
   const selStage = document.getElementById('st-filter-stage')?.value||'';
   const selGroup = document.getElementById('st-filter-group')?.value||'';
   const stageName = selStage ? ((state.stages||[]).find(function(s){return String(s.id)===selStage;})?.name||'') : 'كل المراحل';
   const groupName = selGroup ? ((state.groups||[]).find(function(g){return String(g.id)===selGroup;})?.name||'') : '';
 
-  toast('⏳ جاري إنشاء الباركودات... (' + students.length + ' طالب)','i');
+  toast('⏳ جاري إنشاء ملف PDF... (' + students.length + ' طالب)','i');
+  try{ if(document.fonts && document.fonts.load){ await Promise.all([document.fonts.load('700 20px Tajawal'), document.fonts.load('400 20px Tajawal')]); } }catch(e){}
 
-  // قياسات الكارت الواحد
-  const CARD_W = 300, CARD_H = 370;
-  const COLS = 3;
-  const ROWS = Math.ceil(students.length / COLS);
-  const PAD = 16;
-  const FULL_W = COLS * CARD_W + (COLS+1) * PAD;
-  const FULL_H = ROWS * CARD_H + (ROWS+1) * PAD;
+  // صفحة A4 بدقة 150 نقطة/إنش
+  const PW = 1240, PH = 1754, M = 56, GAP = 26, COLS = 3, ROWS = 4, PER = COLS*ROWS;
+  const HEAD = 70, FOOT = 50;
+  const CW = Math.floor((PW - 2*M - (COLS-1)*GAP) / COLS);
+  const CH = Math.floor((PH - 2*M - HEAD - FOOT - (ROWS-1)*GAP) / ROWS);
+  const FONT = "'Tajawal', Tahoma, Arial, sans-serif";
+  const pages = Math.ceil(students.length / PER);
+  const title = 'باركودات الطلاب — ' + stageName + (groupName ? ' — ' + groupName : '');
 
-  const finalCanvas = document.createElement('canvas');
-  finalCanvas.width  = FULL_W;
-  finalCanvas.height = FULL_H;
-  const ctx = finalCanvas.getContext('2d');
-
-  // خلفية رمادية فاتحة
-  ctx.fillStyle = '#f1f5f9';
-  ctx.fillRect(0, 0, FULL_W, FULL_H);
-
-  // عنوان الصفحة
-  ctx.fillStyle = '#1a2035';
-  ctx.font = 'bold 20px Tahoma';
-  ctx.textAlign = 'center';
-
-  // دالة رسم كارت طالب واحد
-  function drawCard(st, col, row){
-    const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
-    const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
-    ensureBarcode(st);
-
-    const x = PAD + col*(CARD_W+PAD);
-    const y = PAD + row*(CARD_H+PAD);
-
-    // خلفية بيضاء
-    ctx.fillStyle = '#ffffff';
+  function rr(ctx, x, y, w, h, r){
     ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
-    ctx.fill();
-
-    // إطار
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, CARD_H, 12); } else { ctx.rect(x, y, CARD_W, CARD_H); }
-    ctx.stroke();
-
-    // شريط علوي
-    ctx.fillStyle = '#4f8ef7';
-    ctx.beginPath();
-    if(ctx.roundRect){ ctx.roundRect(x, y, CARD_W, 36, [12,12,0,0]); } else { ctx.rect(x, y, CARD_W, 36); }
-    ctx.fill();
-
-    // اسم الطالب
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 13px Tahoma';
-    ctx.textAlign = 'center';
-    const nameText = st.name.length > 20 ? st.name.substring(0,19)+'…' : st.name;
-    ctx.fillText(nameText, x + CARD_W/2, y + 23);
-
-    // المرحلة والكروب
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px Tahoma';
-    ctx.fillText((stage?.name||'') + (group?' — '+group.name:''), x + CARD_W/2, y + 50);
-
-    return {x, y, stage, group};
+    if(ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
   }
-
-  // رسم جميع الكروت وإنشاء QR codes
-  let pending = students.length;
-  if(pending === 0){ finalizeDownload(); return; }
-
-  students.forEach(function(st, idx){
-    const col = idx % COLS;
-    const row = Math.floor(idx / COLS);
-    const info = drawCard(st, col, row);
-    const x = info.x, y = info.y;
-
-    // إنشاء QR مؤقت
-    const tempDiv = document.createElement('div');
-    tempDiv.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
-    document.body.appendChild(tempDiv);
-
-    try {
-      const qr = new QRCode(tempDiv, {
-        text: st.barcode,
-        width: 180, height: 180,
-        colorDark: '#1a2035', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-      });
-
-      // الانتظار لحين توليد الصورة
-      setTimeout(function(){
-        const qrImg = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
-        if(qrImg){
-          if(qrImg.tagName === 'CANVAS'){
-            ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
-          } else {
-            // img قد لا تكون جاهزة
-            if(qrImg.complete){
-              ctx.drawImage(qrImg, x + 60, y + 60, 180, 180);
-            } else {
-              qrImg.onload = function(){ ctx.drawImage(qrImg, x + 60, y + 60, 180, 180); };
-            }
-          }
-        }
-        // الكود
-        ctx.fillStyle = '#4f8ef7';
-        ctx.font = 'bold 14px Tahoma';
-        ctx.textAlign = 'center';
-        ctx.fillText(st.barcode, x + CARD_W/2, y + 262);
-
-        // تفصيل
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '10px Tahoma';
-        ctx.fillText((info.stage?.name||'') + (info.group?' · '+info.group.name:''), x + CARD_W/2, y + 280);
-
-        document.body.removeChild(tempDiv);
-        pending--;
-        if(pending === 0) finalizeDownload();
-      }, 120);
-    } catch(e){
-      document.body.removeChild(tempDiv);
-      pending--;
-      if(pending === 0) finalizeDownload();
+  // يصغّر الخط حتى يدخل النص بالكامل في العرض المتاح (بدون قص)
+  function fitFont(ctx, text, maxW, size, minSize, weight){
+    let sz = size;
+    ctx.font = weight + ' ' + sz + 'px ' + FONT;
+    while(sz > minSize && ctx.measureText(text).width > maxW){ sz--; ctx.font = weight + ' ' + sz + 'px ' + FONT; }
+    return sz;
+  }
+  // سطر أو سطران حسب الطول — الاسم يظهر كاملاً
+  function nameLines(ctx, text, maxW){
+    if(fitFont(ctx, text, maxW, 26, 20, 'bold') >= 20 && ctx.measureText(text).width <= maxW) return [text];
+    const words = String(text).split(/\s+/); let best = [text];
+    for(let i=1;i<words.length;i++){
+      const l1 = words.slice(0,i).join(' '), l2 = words.slice(i).join(' ');
+      if(best.length===1 || Math.abs(l1.length-l2.length) < Math.abs(best[0].length-best[1].length)) best = [l1, l2];
     }
-  });
-
-  function finalizeDownload(){
-    const link = document.createElement('a');
-    const fileName = 'barcodes-' + stageName + (groupName?'-'+groupName:'') + '-' + students.length + 'student.png';
-    link.download = fileName;
-    link.href = finalCanvas.toDataURL('image/png');
-    link.click();
-    toast('✅ تم تنزيل ' + students.length + ' باركود بنجاح');
+    return best;
   }
+  function makeQR(text){
+    const tmp = document.createElement('div');
+    tmp.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(tmp);
+    try{
+      new QRCode(tmp, { text: String(text), width: 400, height: 400, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+      return tmp.querySelector('canvas');
+    }catch(e){ return null; }
+    finally{ setTimeout(function(){ if(tmp.parentNode) tmp.parentNode.removeChild(tmp); }, 0); }
+  }
+
+  const doc = new PDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+  for(let p=0; p<pages; p++){
+    const cv = document.createElement('canvas'); cv.width = PW; cv.height = PH;
+    const ctx = cv.getContext('2d');
+    ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, PW, PH);
+
+    // ترويسة الصفحة
+    ctx.fillStyle = '#1a2035';
+    fitFont(ctx, title, PW - 2*M, 30, 18, 'bold');
+    ctx.fillText(title, PW/2, M + HEAD/2 - 6);
+    ctx.strokeStyle = '#4f8ef7'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(M, M + HEAD - 8); ctx.lineTo(PW - M, M + HEAD - 8); ctx.stroke();
+
+    const slice = students.slice(p*PER, (p+1)*PER);
+    slice.forEach(function(st, i){
+      ensureBarcode(st);
+      const stage = (state.stages||[]).find(function(s){ return s.id===st.stageId; });
+      const group = (state.groups||[]).find(function(g){ return g.id===st.groupId; });
+      const col = i % COLS, row = Math.floor(i / COLS);
+      const x = PW - M - (col+1)*CW - col*GAP;          // من اليمين لليسار
+      const y = M + HEAD + row*(CH+GAP);
+      const cx = x + CW/2;
+
+      // البطاقة
+      ctx.fillStyle = '#ffffff'; rr(ctx, x, y, CW, CH, 16); ctx.fill();
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; rr(ctx, x, y, CW, CH, 16); ctx.stroke();
+
+      // شريط الاسم
+      const BAR = 74, QS = Math.min(230, CH - BAR - 14 - 84);   // كل المحتوى داخل البطاقة
+      ctx.fillStyle = '#4f8ef7'; rr(ctx, x, y, CW, BAR, [16,16,0,0]); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      const lines = nameLines(ctx, st.name||'', CW - 24);
+      if(lines.length === 1){
+        fitFont(ctx, lines[0], CW - 24, 26, 12, 'bold');
+        ctx.fillText(lines[0], cx, y + BAR/2);
+      } else {
+        const sz = Math.min(fitFont(ctx, lines[0], CW - 24, 22, 11, 'bold'), fitFont(ctx, lines[1], CW - 24, 22, 11, 'bold'));
+        ctx.font = 'bold ' + sz + 'px ' + FONT;
+        ctx.fillText(lines[0], cx, y + BAR/2 - sz*0.62);
+        ctx.fillText(lines[1], cx, y + BAR/2 + sz*0.62);
+      }
+
+      // QR
+      const qr = makeQR(st.barcode);
+      const qy = y + BAR + 14;
+      if(qr){ ctx.imageSmoothingEnabled = false; ctx.drawImage(qr, cx - QS/2, qy, QS, QS); ctx.imageSmoothingEnabled = true; }
+
+      // رقم الباركود
+      ctx.fillStyle = '#1e3a8a';
+      fitFont(ctx, String(st.barcode), CW - 24, 26, 12, 'bold');
+      ctx.fillText(String(st.barcode), cx, qy + QS + 24);
+
+      // المرحلة والكروب
+      const sub = (stage?.name||'') + (group ? ' · ' + group.name : '');
+      ctx.fillStyle = '#475569';
+      fitFont(ctx, sub, CW - 24, 20, 11, '500');
+      ctx.fillText(sub, cx, qy + QS + 56);
+    });
+
+    // رقم الصفحة
+    ctx.fillStyle = '#64748b'; ctx.font = '500 20px ' + FONT;
+    ctx.fillText('صفحة ' + (p+1) + ' من ' + pages + ' · عدد الطلاب: ' + students.length, PW/2, PH - M + 6);
+
+    if(p > 0) doc.addPage('a4', 'portrait');
+    doc.addImage(cv.toDataURL('image/png'), 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+    await new Promise(function(r){ setTimeout(r, 0); });   // لا يتجمّد البرنامج مع الأعداد الكبيرة
+  }
+
+  const fileName = ('barcodes-' + stageName + (groupName ? '-' + groupName : '') + '-' + students.length + 'student.pdf').replace(/[\\/:*?"<>|]+/g, '-');
+  doc.save(fileName);
+  toast('✅ تم تنزيل ' + students.length + ' باركود في ملف PDF (' + pages + ' صفحة)');
 }
 
 // ===== مسح السجلات — نافذة الخيارات =====

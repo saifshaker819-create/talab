@@ -5,7 +5,7 @@
  * - لا يلمس بيانات قاعدة البيانات ولا تسجيل الدخول أبداً
  * غيّر رقم الإصدار عند كل تحديث للملفات
  */
-const VERSION = 'dental-v3.6.1';
+const VERSION = 'dental-v3.6.2';
 const CORE = VERSION + '-core';
 const LIBS = VERSION + '-libs';
 
@@ -27,7 +27,8 @@ const LIB_ASSETS = [
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
   'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
   'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
-  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'
+  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
+  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
 ];
 
 // نطاقات المكتبات والخطوط المسموح تخزينها
